@@ -11,12 +11,17 @@ const COLOR = {
   navy:  '1F3A5F',
   teal:  '0E7C86',
   amber: 'E8A33D',
+  plum:  '7C5F8A',   // 補色: くすんだ紫(ターム4色目用)
+  rose:  'C76B7A',   // 補色: 落ち着いたローズ(まとめのバッジ用)
   white: 'FFFFFF',
   card:  'F4F6F9',
   text:  '1A1A1A',
   sub:   '555555',
   line:  'D7DCE3',
 };
+
+// 4枚並びの定型(用語・ブラッシュアップなど)で使う色ローテーション
+const ROTATE = ['teal', 'amber', 'navy', 'plum'];
 
 const FONT_JA = 'Yu Gothic UI';
 const FONT_TITLE = 'Yu Gothic UI Semibold';
@@ -85,30 +90,37 @@ function coverSlide(pres, title, concept, kind = 'normal') {
 // ─────────────────────────────────────────────
 function goalsSlide(pres, title, goals) {
   const slide = baseSlide(pres, { title });
-  const yTop = 1.6;
-  const h = 3.2;
-  const colW = (SLIDE_W - 0.45 * 2 - 0.4) / 3; // 3列、間隔0.2
+  const yTop = 1.45;
+  const h = 2.50;
+  const colW = (SLIDE_W - 0.45 * 2 - 0.4) / 3;
+  const accents = ['teal', 'amber', 'navy'];
   goals.forEach((g, i) => {
     const x = 0.45 + i * (colW + 0.2);
+    const accent = COLOR[accents[i % accents.length]];
     // カード
     slide.addShape(pres.ShapeType.roundRect, {
-      x, y: yTop, w: colW, h, rectRadius: 0.1,
-      fill: { color: COLOR.card }, line: { color: COLOR.line, width: 0.5 },
+      x, y: yTop, w: colW, h, rectRadius: 0.10,
+      fill: { color: COLOR.card }, line: { color: accent, width: 1.5 },
     });
-    // 番号バッジ
+    // 上端アクセント
+    slide.addShape(pres.ShapeType.rect, {
+      x: x + 0.10, y: yTop, w: colW - 0.20, h: 0.06,
+      fill: { color: accent }, line: { type: 'none' },
+    });
+    // 番号バッジ(色も回す)
     slide.addText(`0${i + 1}`, {
-      x: x + 0.2, y: yTop + 0.2, w: 0.8, h: 0.55,
-      fontSize: 26, bold: true, color: COLOR.teal, fontFace: FONT_TITLE,
+      x: x + 0.2, y: yTop + 0.15, w: 0.85, h: 0.55,
+      fontSize: 24, bold: true, color: accent, fontFace: FONT_TITLE,
     });
     // 見出し
     slide.addText(g.title, {
-      x: x + 0.2, y: yTop + 0.85, w: colW - 0.4, h: 0.7,
-      fontSize: 15, bold: true, color: COLOR.navy, fontFace: FONT_TITLE,
+      x: x + 0.2, y: yTop + 0.72, w: colW - 0.4, h: 0.55,
+      fontSize: 14, bold: true, color: COLOR.navy, fontFace: FONT_TITLE,
       valign: 'top',
     });
     // 詳細
     slide.addText(g.detail, {
-      x: x + 0.2, y: yTop + 1.6, w: colW - 0.4, h: h - 1.8,
+      x: x + 0.2, y: yTop + 1.30, w: colW - 0.4, h: h - 1.40,
       fontSize: 11, color: COLOR.text, fontFace: FONT_JA, valign: 'top',
     });
   });
@@ -116,40 +128,62 @@ function goalsSlide(pres, title, goals) {
 }
 
 // ─────────────────────────────────────────────
-// 用語・前提カード（4つ）
+// 用語・前提カード（4つ）— 色を 4色ローテーションし、カード高さを内容に最適化
 // ─────────────────────────────────────────────
 function termsSlide(pres, title, terms) {
-  const slide = baseSlide(pres, { title, subtitle: 'STEP1: 用語・前提' });
-  const yTop = 1.4;
-  const totalW = SLIDE_W - 0.45 * 2;
-  const colW = (totalW - 0.2 * 3) / 4;
-  const h = 3.4;
+  const slide = baseSlide(pres, { title });   // サブタイトル削除（重複回避）
+  const yTop = 1.20;
+  const totalW = SLIDE_W - 0.40 * 2;
+  const colW = (totalW - 0.18 * 3) / 4;
+  const cardH = 2.30;                          // 3.4→2.3 で空白を圧縮
+  const noteY = yTop + cardH + 0.55;           // 用語注 を カード直下に
   terms.forEach((t, i) => {
-    const x = 0.45 + i * (colW + 0.2);
+    const x = 0.40 + i * (colW + 0.18);
+    const accent = COLOR[ROTATE[i % ROTATE.length]];
+    // 本体カード(白)
     slide.addShape(pres.ShapeType.roundRect, {
-      x, y: yTop, w: colW, h, rectRadius: 0.08,
-      fill: { color: COLOR.white }, line: { color: COLOR.teal, width: 1.5 },
+      x, y: yTop, w: colW, h: cardH, rectRadius: 0.10,
+      fill: { color: COLOR.white }, line: { color: accent, width: 1.5 },
     });
-    // ピン
+    // ヘッダー帯
+    slide.addShape(pres.ShapeType.roundRect, {
+      x, y: yTop, w: colW, h: 0.55, rectRadius: 0.10,
+      fill: { color: accent }, line: { type: 'none' },
+    });
+    // 帯の下端をフラットに(角丸で上にだけ来るよう、下側を白角丸で隠す)
     slide.addShape(pres.ShapeType.rect, {
-      x, y: yTop, w: colW, h: 0.5, fill: { color: COLOR.teal }, line: { type: 'none' },
+      x, y: yTop + 0.20, w: colW, h: 0.35,
+      fill: { color: accent }, line: { type: 'none' },
     });
     slide.addText(t.term, {
-      x: x + 0.1, y: yTop + 0.05, w: colW - 0.2, h: 0.4,
-      fontSize: 14, bold: true, color: COLOR.white, fontFace: FONT_TITLE,
+      x: x + 0.14, y: yTop + 0.08, w: colW - 0.28, h: 0.45,
+      fontSize: 13, bold: true, color: COLOR.white, fontFace: FONT_TITLE,
+      valign: 'middle',
     });
     slide.addText(t.desc, {
-      x: x + 0.15, y: yTop + 0.65, w: colW - 0.3, h: h - 0.8,
-      fontSize: 10.5, color: COLOR.text, fontFace: FONT_JA, valign: 'top',
+      x: x + 0.18, y: yTop + 0.68, w: colW - 0.36, h: cardH - 0.78,
+      fontSize: 11, color: COLOR.text, fontFace: FONT_JA, valign: 'top',
+      paraSpaceAfter: 2,
     });
   });
-  // 用語注
+  // 用語注(※)
   if (terms.some(t => t.note)) {
-    const notes = terms.filter(t => t.note)
-      .map(t => `※ ${t.term}: ${t.note}`).join('   ');
-    slide.addText(notes, {
-      x: 0.45, y: 5.10, w: SLIDE_W - 0.9, h: 0.35,
-      fontSize: 9, color: COLOR.sub, fontFace: FONT_JA, italic: true,
+    // 各 note を 1行ずつ並べる(横並びだと窮屈)
+    const noteLines = terms
+      .filter(t => t.note)
+      .map(t => ({
+        text: '※ ',
+        options: { color: COLOR.amber, bold: true },
+      })).flatMap((bullet, idx) => [
+        bullet,
+        { text: terms.filter(t => t.note)[idx].term + ': ',
+          options: { color: COLOR.navy, bold: true } },
+        { text: terms.filter(t => t.note)[idx].note + '   ',
+          options: { color: COLOR.sub } },
+      ]);
+    slide.addText(noteLines, {
+      x: 0.40, y: noteY, w: SLIDE_W - 0.80, h: 1.30,
+      fontSize: 9.5, fontFace: FONT_JA, italic: false, valign: 'top',
     });
   }
   return slide;
@@ -200,44 +234,46 @@ function card(pres, slide, x, y, w, h, head, body, accent) {
 // ブラッシュアップ: A/B/C の3観点 (✓ + 💡)
 // ─────────────────────────────────────────────
 function brushSlide(pres, title, items) {
-  const slide = baseSlide(pres, { title, subtitle: 'プロンプトをさらにブラッシュアップ' });
+  const slide = baseSlide(pres, { title, subtitle: 'プロンプトをさらにブラッシュアップ — 3観点でセルフチェック' });
   const yTop = 1.30;
   const totalW = SLIDE_W - 0.45 * 2;
   const colW = (totalW - 0.2 * 2) / 3;
-  const h = 3.85;
+  const h = 3.60;     // 余白を圧縮(3.85→3.60)
+  const accents = ['teal', 'amber', 'plum'];
   items.forEach((it, i) => {
     const x = 0.45 + i * (colW + 0.2);
+    const accent = COLOR[accents[i % accents.length]];
     slide.addShape(pres.ShapeType.roundRect, {
-      x, y: yTop, w: colW, h, rectRadius: 0.08,
-      fill: { color: COLOR.card }, line: { color: COLOR.line, width: 0.5 },
+      x, y: yTop, w: colW, h, rectRadius: 0.10,
+      fill: { color: COLOR.card }, line: { color: accent, width: 1.2 },
     });
-    // ラベル
+    // ラベル(色を観点別に変える)
     slide.addShape(pres.ShapeType.rect, {
-      x, y: yTop, w: colW, h: 0.45, fill: { color: COLOR.teal }, line: { type: 'none' },
+      x, y: yTop, w: colW, h: 0.42, fill: { color: accent }, line: { type: 'none' },
     });
     slide.addText(`観点 ${String.fromCharCode(65 + i)}`, {
-      x: x + 0.1, y: yTop + 0.04, w: colW - 0.2, h: 0.36,
+      x: x + 0.12, y: yTop + 0.04, w: colW - 0.24, h: 0.34,
       fontSize: 12, bold: true, color: COLOR.white, fontFace: FONT_TITLE,
     });
     slide.addText(it.title, {
-      x: x + 0.18, y: yTop + 0.55, w: colW - 0.3, h: 0.5,
-      fontSize: 12.5, bold: true, color: COLOR.navy, fontFace: FONT_TITLE, valign: 'top',
+      x: x + 0.18, y: yTop + 0.50, w: colW - 0.3, h: 0.50,
+      fontSize: 12, bold: true, color: COLOR.navy, fontFace: FONT_TITLE, valign: 'top',
     });
-    // ✓ チェック
+    // ✓ チェック(緑)
     slide.addText([
-      { text: '✓ ', options: { color: COLOR.teal, bold: true } },
+      { text: '✓  ', options: { color: COLOR.teal, bold: true, fontSize: 12 } },
       { text: it.check, options: { color: COLOR.text } },
     ], {
-      x: x + 0.18, y: yTop + 1.10, w: colW - 0.3, h: 1.2,
-      fontSize: 11, fontFace: FONT_JA, valign: 'top',
+      x: x + 0.18, y: yTop + 1.05, w: colW - 0.3, h: 1.15,
+      fontSize: 10.5, fontFace: FONT_JA, valign: 'top',
     });
-    // 💡 AI へのヒント
+    // 💡 AI へのヒント(黄)
     slide.addText([
-      { text: '💡 ', options: { color: COLOR.amber, bold: true } },
+      { text: '💡  ', options: { color: COLOR.amber, bold: true, fontSize: 12 } },
       { text: it.tip, options: { color: COLOR.text } },
     ], {
-      x: x + 0.18, y: yTop + 2.40, w: colW - 0.3, h: h - 2.55,
-      fontSize: 11, fontFace: FONT_JA, valign: 'top',
+      x: x + 0.18, y: yTop + 2.20, w: colW - 0.3, h: h - 2.30,
+      fontSize: 10.5, fontFace: FONT_JA, valign: 'top',
     });
   });
   return slide;
