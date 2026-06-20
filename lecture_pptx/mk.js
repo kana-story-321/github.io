@@ -334,13 +334,13 @@ async function main() {
   const out = require('path').join(__dirname, 'out');
   require('fs').mkdirSync(out, { recursive: true });
 
-  await buildStudent(W01, false).writeFile({ fileName: `${out}/ワーク01_基礎_生徒用.pptx` });
-  console.log('✓ ワーク01_基礎_生徒用.pptx');
-  await buildTeacher(W01).writeFile({ fileName: `${out}/ワーク01_基礎_講師用.pptx` });
-  console.log('✓ ワーク01_基礎_講師用.pptx');
-  await buildStudent(W02, true).writeFile({ fileName: `${out}/ワーク02_応用_生徒用.pptx` });
-  console.log('✓ ワーク02_応用_生徒用.pptx');
-  await buildTeacher(W02).writeFile({ fileName: `${out}/ワーク02_応用_講師用.pptx` });
-  console.log('✓ ワーク02_応用_講師用.pptx');
+  await buildStudent(W01, false).writeFile({ fileName: `${out}/ワーク01.pptx` });
+  console.log('✓ ワーク01.pptx');
+  await buildTeacher(W01).writeFile({ fileName: `${out}/ワーク01_講師用.pptx` });
+  console.log('✓ ワーク01_講師用.pptx');
+  await buildStudent(W02, true).writeFile({ fileName: `${out}/ワーク02.pptx` });
+  console.log('✓ ワーク02.pptx');
+  await buildTeacher(W02).writeFile({ fileName: `${out}/ワーク02_講師用.pptx` });
+  console.log('✓ ワーク02_講師用.pptx');
 }
 main();
