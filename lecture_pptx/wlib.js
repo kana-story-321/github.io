@@ -112,15 +112,15 @@ function goalsSlide(pres, title, goals) {
 }
 
 // ───────────────────────────────────────────────
-// 用語・前提カード (4つ) — 色ローテーション + 余白圧縮
+// 用語・前提カード (4つ) — 色ローテーション + 改行+大きめフォント
 // ───────────────────────────────────────────────
 function termsSlide(pres, title, terms) {
   const slide = baseSlide(pres, { title });
   const yTop = 1.30;
   const totalW = SLIDE_W - 0.40 * 2;
   const colW = (totalW - 0.18 * 3) / 4;
-  const cardH = 2.70;
-  const noteY = yTop + cardH + 0.30;
+  const cardH = 3.30;          // 説明文を大きく見せるため高さも拡張
+  const noteY = yTop + cardH + 0.20;
   terms.forEach((t, i) => {
     const x = 0.40 + i * (colW + 0.18);
     const accent = COLOR[ROTATE[i % ROTATE.length]];
@@ -141,10 +141,13 @@ function termsSlide(pres, title, terms) {
       fontSize: 16, bold: true, color: COLOR.white, fontFace: FONT_TITLE,
       valign: 'middle',
     });
-    slide.addText(t.desc, {
-      x: x + 0.18, y: yTop + 0.78, w: colW - 0.36, h: cardH - 0.90,
-      fontSize: 13, color: COLOR.text, fontFace: FONT_JA, valign: 'top',
-      paraSpaceAfter: 2,
+    // 説明文を「。」で自動改行 → 段落として渡す(各段落間に余白)
+    const descParas = splitByPeriod(t.desc).map(line => ({
+      text: line, options: { paraSpaceAfter: 6 },
+    }));
+    slide.addText(descParas, {
+      x: x + 0.18, y: yTop + 0.82, w: colW - 0.36, h: cardH - 0.95,
+      fontSize: 16, color: COLOR.text, fontFace: FONT_JA, valign: 'top',
     });
   });
   if (terms.some(t => t.note)) {
@@ -156,11 +159,17 @@ function termsSlide(pres, title, terms) {
       noteRuns.push({ text: t.note + (idx < filtered.length - 1 ? '   ' : ''), options: { color: COLOR.sub } });
     });
     slide.addText(noteRuns, {
-      x: 0.40, y: noteY, w: SLIDE_W - 0.80, h: 1.30,
+      x: 0.40, y: noteY, w: SLIDE_W - 0.80, h: 1.00,
       fontSize: 11, fontFace: FONT_JA, valign: 'top',
     });
   }
   return slide;
+}
+
+// 「。」で改行(末尾の「。」は残し、空文字は除く)
+function splitByPeriod(s) {
+  if (!s) return [''];
+  return s.split(/(?<=。)/).map(t => t.trim()).filter(Boolean);
 }
 
 // ───────────────────────────────────────────────
