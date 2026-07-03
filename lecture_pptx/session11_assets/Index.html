@@ -13,6 +13,7 @@
     --line: #D7DCE3;
     --text: #1A1A1A;
     --sub: #555;
+    --error: #C76B7A;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -43,6 +44,26 @@
   }
   header h1 { margin: 0; font-size: 17px; font-weight: 600; }
   header .sub { margin-top: 2px; font-size: 11px; opacity: 0.75; }
+  header .test {
+    margin-left: auto;
+    background: transparent; color: #fff;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 11px; cursor: pointer;
+    font-family: inherit;
+  }
+  header .test:hover { background: rgba(255,255,255,0.15); }
+
+  .status {
+    padding: 6px 14px;
+    font-size: 11px;
+    background: #FFF8EC;
+    color: var(--navy);
+    border-bottom: 1px solid var(--amber);
+    display: none;
+  }
+  .status.show { display: block; }
 
   .messages {
     flex: 1; overflow-y: auto;
@@ -78,12 +99,22 @@
     align-self: flex-start;
     border-bottom-left-radius: 4px;
   }
+  .msg.error {
+    background: #FDEEF0;
+    border: 1px solid var(--error);
+    color: #4a1c25;
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+  }
   .msg .tag {
     display: inline-block; font-size: 10px; font-weight: bold;
     padding: 1px 6px; border-radius: 4px;
-    background: var(--amber); color: #fff;
+    color: #fff;
     margin-right: 6px; vertical-align: middle;
   }
+  .msg.handoff .tag { background: var(--amber); }
+  .msg.error .tag   { background: var(--error); }
+
   .quick {
     padding: 8px 12px;
     display: flex; flex-wrap: wrap; gap: 6px;
@@ -151,14 +182,15 @@
       <h1>保険FAQ チャット</h1>
       <div class="sub">よくあるご質問にAIが即回答します</div>
     </div>
+    <button type="button" class="test" id="testBtn" title="接続テスト">🔧 診断</button>
   </header>
 
+  <div class="status" id="status"></div>
+
   <div class="messages" id="messages">
-    <div class="msg bot">
-      こんにちは!保険のご相談窓口です。
+    <div class="msg bot">こんにちは!保険のご相談窓口です。
 気になることを日本語で入力してください。
-下のボタンからもよくある質問を選べます😊
-    </div>
+下のボタンからもよくある質問を選べます😊</div>
   </div>
 
   <div class="quick" id="quick"></div>
@@ -170,9 +202,6 @@
 </div>
 
 <script>
-  // 開発中ローカルテスト用のURL(空にしておくと自己の doGet を叩く)
-  const API = ''; // 例: 'https://script.google.com/macros/s/xxx/exec'
-
   const QUICK_QS = [
     '保険相談は無料ですか?',
     '資料請求はできますか?',
@@ -185,6 +214,15 @@
   const messages = $('messages');
   const input = $('input');
   const send = $('send');
+  const status = $('status');
+
+  function showStatus(text) {
+    status.textContent = text;
+    status.classList.add('show');
+  }
+  function hideStatus() {
+    status.classList.remove('show');
+  }
 
   function addMsg(text, kind, tag) {
     const el = document.createElement('div');
@@ -209,6 +247,7 @@
     return el;
   }
 
+  // よくある質問ボタン
   const quick = $('quick');
   QUICK_QS.forEach(q => {
     const b = document.createElement('button');
@@ -218,6 +257,22 @@
     quick.appendChild(b);
   });
 
+  // ────────────────────────────────────────────
+  // サーバ呼び出し (google.script.run で GAS 関数を直接呼ぶ)
+  // ────────────────────────────────────────────
+  function callServer(fnName, arg) {
+    return new Promise((resolve, reject) => {
+      if (!window.google || !google.script || !google.script.run) {
+        reject(new Error('google.script.run が使えません。GASのウェブアプリURLから直接開いてください。'));
+        return;
+      }
+      const runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler((err) => reject(err instanceof Error ? err : new Error(err && err.message || String(err))));
+      runner[fnName](arg);
+    });
+  }
+
   async function ask(q) {
     if (!q) return;
     input.value = '';
@@ -225,23 +280,39 @@
     addMsg(q, 'user');
     const loader = addLoading();
     try {
-      const url = (API || '') + '?q=' + encodeURIComponent(q);
-      const res = await fetch(url);
-      const data = await res.json();
+      const data = await callServer('answerQuestion', q);
       loader.remove();
+      if (!data || typeof data !== 'object') {
+        addMsg('サーバから予期しない応答が返りました。', 'error', 'エラー');
+        return;
+      }
       if (data.handoff) {
-        addMsg(data.text, 'handoff', '担当者へ');
+        addMsg(data.text || '担当者からご連絡いたします。', 'handoff', '担当者へ');
       } else {
-        addMsg(data.text, 'bot');
+        addMsg(data.text || '(空応答)', 'bot');
       }
     } catch (e) {
       loader.remove();
-      addMsg('通信エラーが発生しました。時間を置いて再度お試しください。', 'handoff', 'エラー');
+      addMsg('通信エラー: ' + (e.message || e), 'error', 'エラー');
     } finally {
       input.disabled = false; send.disabled = false;
       input.focus();
     }
   }
+
+  // 🔧 診断ボタン
+  $('testBtn').addEventListener('click', async () => {
+    showStatus('接続テスト中…');
+    try {
+      const r = await callServer('pingServer');
+      const msg = 'サーバOK / FAQ: ' + r.faqCount + '件 / APIキー: ' +
+                  (r.hasApiKey ? 'あり' : 'なし') + ' / モデル: ' + r.model;
+      showStatus(msg);
+      setTimeout(hideStatus, 6000);
+    } catch (e) {
+      showStatus('接続エラー: ' + (e.message || e));
+    }
+  });
 
   $('form').addEventListener('submit', (e) => {
     e.preventDefault();

@@ -1,23 +1,29 @@
 /**
- * 第11回 演習1 — FAQ チャットボット (GAS Web アプリ)
+ * 第11回 演習1 — FAQ チャットボット (GAS Web アプリ)  ★修正版
  *
  * 【構成】
  *   ・FAQ シート(質問/回答/カテゴリ)を知識として Gemini に渡す
- *   ・doGet で HTML UI を返し、fetch("?q=...") でチャット応答
- *   ・答えられない質問は「担当者に繋ぐ」案内を返す
+ *   ・doGet で HTML UI を返す
+ *   ・HTML からは google.script.run で answerQuestion() を直接呼ぶ
+ *
+ * 【変更履歴 (前版からの修正点)】
+ *   ・HTML からのアクセスに fetch を使うと GAS iframe サンドボックスの
+ *     制約でリクエストが届かない不具合を、google.script.run 呼び出しに変更
+ *   ・pingServer() を追加、動作確認を GAS 側で完結できるように
  *
  * 【セットアップ】
  *   1. このコードを FAQ スプレッドシートに紐付いた GAS プロジェクトに貼る
- *      (スプレッドシートを開いて 拡張機能 → Apps Script)
- *   2. Index.html を新規追加し、末尾のテンプレートをそのまま貼る
- *   3. プロジェクト設定 → スクリプト プロパティ に以下を追加
- *        GEMINI_API_KEY  = Google AI Studio で発行した API キー
- *   4. デプロイ → 新しいデプロイ → 種類「ウェブアプリ」
+ *   2. Index.html を新規追加し、同梱ファイルの内容をそのまま貼る
+ *   3. プロジェクト設定 → スクリプト プロパティ に
+ *        GEMINI_API_KEY = Google AI Studio で発行した API キー
+ *      を追加
+ *   4. 【重要】デプロイし直す (コードを変えたら必ず「新しいバージョン」で再デプロイ)
+ *      デプロイ → 新しいデプロイ → 種類「ウェブアプリ」
  *        ・実行するユーザー: 自分
  *        ・アクセスできるユーザー: 全員
- *      → デプロイ後の URL をリッチメニューのボタンに設定
+ *      → 新しい URL をリッチメニューのボタンに設定し直す
  *
- * 【動作確認モデル】 gemini-2.5-flash (2026/07 時点で GA・安定版)
+ * 【動作確認モデル】 gemini-2.5-flash
  *   利用可否は verifyModel() をエディタから実行して確認可能
  */
 
@@ -26,17 +32,9 @@ const MODEL_ID       = 'gemini-2.5-flash';
 const API_BASE       = 'https://generativelanguage.googleapis.com/v1beta';
 
 // ────────────────────────────────────────────────
-// Web アプリ入口
+// Web アプリ入口: HTML を返すだけ
 // ────────────────────────────────────────────────
 function doGet(e) {
-  // JSON API モード: ?q=... で応答テキストを返す
-  if (e && e.parameter && e.parameter.q) {
-    const answer = answerQuestion(String(e.parameter.q));
-    return ContentService
-      .createTextOutput(JSON.stringify(answer))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  // HTML モード: Index.html を返す
   const tpl = HtmlService.createTemplateFromFile('Index');
   return tpl.evaluate()
     .setTitle('保険FAQ チャット')
@@ -45,31 +43,70 @@ function doGet(e) {
 }
 
 // ────────────────────────────────────────────────
-// メイン: 質問→回答
+// クライアント(HTML)から google.script.run で呼ばれる関数
+// アンダースコアで終わらないので外部から呼び出し可能
 // ────────────────────────────────────────────────
 function answerQuestion(question) {
-  const faqs = loadFAQ_();
-  if (faqs.length === 0) {
-    return { text: 'FAQ が読み込めませんでした。担当者にご連絡ください。', handoff: true };
+  try {
+    Logger.log('[answerQuestion] 受信: ' + question);
+    if (!question || typeof question !== 'string') {
+      return { text: '質問を入力してください。', handoff: false };
+    }
+    const faqs = loadFAQ_();
+    Logger.log('[answerQuestion] FAQ件数: ' + faqs.length);
+    if (faqs.length === 0) {
+      return {
+        text: 'FAQ シートが読み込めませんでした。シート名「FAQ」と列見出し「質問/回答/カテゴリ」を確認してください。',
+        handoff: true
+      };
+    }
+    return askGemini_(question, faqs);
+  } catch (err) {
+    Logger.log('[answerQuestion] エラー: ' + err.message + ' / ' + err.stack);
+    return { text: '内部エラーが発生しました: ' + err.message, handoff: true };
   }
+}
 
-  // まず FAQ から完全に一致しそうなものを Gemini に選ばせる
-  const result = askGemini_(question, faqs);
-  return result;
+// ────────────────────────────────────────────────
+// 動作確認用 (HTMLの右上「接続テスト」ボタンから呼ぶ)
+// ────────────────────────────────────────────────
+function pingServer() {
+  const faqs = loadFAQ_();
+  const apiKey = getApiKey_();
+  return {
+    ok: true,
+    faqCount: faqs.length,
+    hasApiKey: !!apiKey,
+    sheetName: FAQ_SHEET_NAME,
+    model: MODEL_ID,
+    time: new Date().toString(),
+  };
 }
 
 // ────────────────────────────────────────────────
 // スプレッドシートから FAQ を読み込む
 // ────────────────────────────────────────────────
 function loadFAQ_() {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FAQ_SHEET_NAME);
-  if (!sh) return [];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    Logger.log('[loadFAQ] ActiveSpreadsheet が null');
+    return [];
+  }
+  const sh = ss.getSheetByName(FAQ_SHEET_NAME);
+  if (!sh) {
+    Logger.log('[loadFAQ] シート「' + FAQ_SHEET_NAME + '」が見つかりません');
+    return [];
+  }
   const values = sh.getDataRange().getValues();
   if (values.length < 2) return [];
   const [header, ...rows] = values;
   const qi = header.indexOf('質問');
   const ai = header.indexOf('回答');
   const ci = header.indexOf('カテゴリ');
+  if (qi === -1 || ai === -1) {
+    Logger.log('[loadFAQ] 列見出し「質問」「回答」が見つかりません: ' + JSON.stringify(header));
+    return [];
+  }
   return rows
     .filter(r => r[qi] && r[ai])
     .map(r => ({ q: String(r[qi]), a: String(r[ai]), c: String(r[ci] || '') }));
@@ -81,7 +118,10 @@ function loadFAQ_() {
 function askGemini_(question, faqs) {
   const apiKey = getApiKey_();
   if (!apiKey) {
-    return { text: 'API キーが未設定です。担当者にご連絡ください。', handoff: true };
+    return {
+      text: 'GEMINI_API_KEY がスクリプトプロパティに設定されていません。担当者にご連絡ください。',
+      handoff: true,
+    };
   }
 
   const knowledge = faqs
@@ -92,8 +132,8 @@ function askGemini_(question, faqs) {
     'あなたは保険営業事務所の「一次受け AI」です。以下のルールを厳守してください。\n' +
     ' 1. 下の【FAQ 知識】に一致・類似する内容なら、その回答を要約(200文字以内)して丁寧語で返す。\n' +
     ' 2. FAQ に情報がない、または個人契約の内容に関する質問には\n' +
-    '    「担当者からご連絡いたします。少々お待ちください。」と返し、末尾に [HANDOFF] を付ける。\n' +
-    ' 3. 医療診断・法律相談・不適切な話題には応じず、上と同じ[HANDOFF]応答にする。\n' +
+    '    「担当者からご連絡いたします。少々お待ちください。」と返し、handoff=true にする。\n' +
+    ' 3. 医療診断・法律相談・不適切な話題には応じず、上と同じ handoff=true 応答にする。\n' +
     ' 4. 出力は JSON で {"text": "回答", "handoff": true/false} の形式のみ。前置きや解説は不要。';
 
   const userPrompt =
@@ -125,13 +165,21 @@ function askGemini_(question, faqs) {
     muteHttpExceptions: true,
   });
 
-  if (res.getResponseCode() !== 200) {
-    Logger.log('Gemini error: ' + res.getContentText());
-    return { text: '応答生成に失敗しました。担当者からご連絡いたします。', handoff: true };
+  const code = res.getResponseCode();
+  Logger.log('[askGemini] HTTP ' + code);
+  if (code !== 200) {
+    Logger.log('[askGemini] エラー本文: ' + res.getContentText());
+    return {
+      text: 'Gemini API 呼び出しでエラーが発生しました(HTTP ' + code + ')。担当者からご連絡いたします。',
+      handoff: true
+    };
   }
 
   const data = JSON.parse(res.getContentText());
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const text = data && data.candidates && data.candidates[0] &&
+               data.candidates[0].content && data.candidates[0].content.parts &&
+               data.candidates[0].content.parts[0] &&
+               data.candidates[0].content.parts[0].text || '';
   try {
     const parsed = JSON.parse(text);
     return {
@@ -162,6 +210,14 @@ function verifyModel() {
   const ok = usable.indexOf(MODEL_ID) !== -1;
   Logger.log((ok ? '✅ ' : '❌ ') + MODEL_ID + ' は' + (ok ? '利用可能' : '利用不可'));
   Logger.log('先頭10件: ' + usable.slice(0, 10).join(' / '));
+}
+
+// ────────────────────────────────────────────────
+// 直接テスト用 (エディタから実行して動作確認)
+// ────────────────────────────────────────────────
+function testAnswer() {
+  const r = answerQuestion('相談は無料ですか?');
+  Logger.log(JSON.stringify(r, null, 2));
 }
 
 function getApiKey_() {
