@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  body { font-family: 'Yu Gothic UI', -apple-system, sans-serif; font-size: 13px; padding: 12px; color: #1a1a1a; margin: 0; }
+  h2 { color: #1F3A5F; font-size: 15px; margin: 0 0 12px; }
+  label { display: block; font-weight: bold; color: #1F3A5F; margin: 10px 0 4px; font-size: 12px; }
+  input, select, textarea {
+    width: 100%; padding: 6px; border: 1px solid #D7DCE3; border-radius: 4px;
+    font-size: 13px; box-sizing: border-box; font-family: inherit;
+  }
+  textarea { min-height: 42px; resize: vertical; }
+  select { background: white; }
+  button {
+    width: 100%; padding: 10px; background: #0E7C86; color: white;
+    border: none; border-radius: 4px; font-size: 14px; font-weight: bold;
+    cursor: pointer; margin-top: 16px;
+  }
+  button:disabled { background: #999; cursor: wait; }
+  button:hover:not(:disabled) { background: #0a6068; }
+  .result { margin-top: 20px; padding: 12px; border-radius: 6px; border: 1px solid #D7DCE3; background: #F4F6F9; }
+  .verdict { font-size: 18px; font-weight: bold; text-align: center; padding: 10px; border-radius: 4px; margin-bottom: 12px; }
+  .v-YES         { background: #E6F4EA; color: #0E7C86; }
+  .v-YES-cond    { background: #FFF4D6; color: #7C5F8A; }
+  .v-check       { background: #FFF7E0; color: #B8811F; }
+  .v-NO          { background: #FDECEA; color: #C76B7A; }
+  .v-none        { background: #ECEFF1; color: #555; }
+  .field { margin-bottom: 10px; }
+  .field-label { font-weight: bold; color: #7C5F8A; font-size: 11px; }
+  .error { color: #C76B7A; padding: 10px; background: #FDECEA; border-radius: 4px; margin-top: 12px; font-size: 12px; }
+  .rule-id { font-family: 'Menlo', monospace; background: #FFF7E0; padding: 2px 6px; border-radius: 3px; font-size: 11px; color: #1F3A5F; }
+  .loading { text-align: center; padding: 20px; color: #7C5F8A; }
+  .saved-note { font-size: 10px; color: #999; margin-top: 12px; text-align: right; }
+  .divider { border: none; border-top: 1px dashed #D7DCE3; margin: 14px 0 8px; }
+</style>
+</head>
+<body>
+<h2>🔍 引受判定ツール</h2>
+
+<label>年齢</label>
+<input id="age" type="number" placeholder="例: 45">
+
+<label>性別</label>
+<select id="gender">
+  <option value="">選択</option>
+  <option>男</option>
+  <option>女</option>
+  <option>選択なし</option>
+</select>
+
+<label>健康状態</label>
+<textarea id="health" placeholder="例: 高血圧治療中(1年経過、収縮期185mmHg)"></textarea>
+
+<label>職業</label>
+<input id="job" type="text" placeholder="例: 会社員 / 消防士 / 高所作業員">
+
+<label>既往歴</label>
+<textarea id="history" placeholder="例: 5年前に胃潰瘍で入院、完治証明あり"></textarea>
+
+<label>その他(妊娠週数・手術予定・希望保険金額など)</label>
+<textarea id="other" placeholder="例: 妊娠15週 / 3ヶ月以内に手術予定 / 保険金3億円希望"></textarea>
+
+<hr class="divider">
+
+<label>検討中の商品</label>
+<select id="product">
+  <option value="">読み込み中...</option>
+</select>
+
+<button id="run" onclick="run()">判定する</button>
+
+<div id="output"></div>
+
+<script>
+  // 起動時に商品リストを取得
+  window.addEventListener('load', () => {
+    google.script.run
+      .withSuccessHandler(list => {
+        const sel = document.getElementById('product');
+        sel.innerHTML = '<option value="">-- 商品を選択 --</option>';
+        list.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p; opt.textContent = p;
+          sel.appendChild(opt);
+        });
+      })
+      .withFailureHandler(err => {
+        document.getElementById('product').innerHTML = '<option value="">読込エラー</option>';
+        showError('商品リストの読み込み失敗: ' + err.message);
+      })
+      .getProductList();
+  });
+
+  function run() {
+    const productKey = document.getElementById('product').value;
+    if (!productKey) { alert('検討中の商品を選んでください'); return; }
+
+    const input = {
+      age:      document.getElementById('age').value,
+      gender:   document.getElementById('gender').value,
+      health:   document.getElementById('health').value,
+      job:      document.getElementById('job').value,
+      history:  document.getElementById('history').value,
+      other:    document.getElementById('other').value,
+      productKey: productKey,
+    };
+
+    const btn = document.getElementById('run');
+    btn.disabled = true; btn.textContent = '判定中…';
+    document.getElementById('output').innerHTML = '<div class="loading">🤔 Gemini が判定中…</div>';
+
+    google.script.run
+      .withSuccessHandler(resp => {
+        btn.disabled = false; btn.textContent = '判定する';
+        if (!resp.ok) { showError(resp.error); return; }
+        showResult(resp.result);
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false; btn.textContent = '判定する';
+        showError(err.message);
+      })
+      .runJudgment(input);
+  }
+
+  function showResult(r) {
+    const cls = ({
+      'YES':          'v-YES',
+      'YES(条件付)': 'v-YES-cond',
+      '要確認':       'v-check',
+      'NO':           'v-NO',
+      '該当なし':     'v-none',
+    })[r.verdict] || 'v-none';
+
+    document.getElementById('output').innerHTML = `
+      <div class="result">
+        <div class="verdict ${cls}">${escapeHtml(r.verdict)}</div>
+        <div class="field">
+          <span class="field-label">該当条件ID</span><br>
+          <span class="rule-id">${escapeHtml(r.ruleId)}</span>
+        </div>
+        <div class="field">
+          <span class="field-label">判定理由</span><br>${escapeHtml(r.reason)}
+        </div>
+        <div class="field">
+          <span class="field-label">対応(追加確認 / 代替商品 / 再申込タイミング)</span><br>${escapeHtml(r.action)}
+        </div>
+        <div class="field">
+          <span class="field-label">次のアクション</span><br>${escapeHtml(r.nextStep)}
+        </div>
+        <div class="saved-note">✓ 「判定履歴」シートに保存済み</div>
+      </div>
+    `;
+  }
+
+  function showError(msg) {
+    document.getElementById('output').innerHTML =
+      '<div class="error">エラー: ' + escapeHtml(msg) + '</div>';
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g,
+      c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+</script>
+</body>
+</html>
