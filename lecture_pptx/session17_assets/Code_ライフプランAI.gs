@@ -25,6 +25,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('ライフプランAI')
     .addItem('▶ シミュレーション実行', 'runSimulation')
+    .addItem('📄 顧客向けレポート出力 (PDF)', 'generateCustomerReport')
     .addSeparator()
     .addItem('サイドバーを開く(サマリ表示)', 'showSidebar')
     .addItem('結果シートを初期化', 'initResultSheets')
