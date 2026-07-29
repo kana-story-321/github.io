@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<title>ライフプランAI Web版</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Yu Gothic UI', -apple-system, sans-serif;
+    margin: 0; padding: 20px; background: #F4F6F9; color: #1a1a1a;
+    max-width: 900px; margin: 0 auto;
+  }
+  h1 { color: #1F3A5F; font-size: 22px; margin: 0 0 12px; }
+  .subtitle { color: #7C5F8A; font-size: 13px; margin-bottom: 24px; }
+  .card {
+    background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  h2 { color: #0E7C86; font-size: 15px; margin: 0 0 12px; border-bottom: 2px solid #E8A33D; padding-bottom: 6px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  label { display: block; font-weight: bold; color: #1F3A5F; margin: 8px 0 4px; font-size: 12px; }
+  input, select, textarea {
+    width: 100%; padding: 8px; border: 1px solid #D7DCE3; border-radius: 4px;
+    font-size: 13px; font-family: inherit; background: white;
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  button {
+    padding: 12px 24px; background: #0E7C86; color: white; border: none;
+    border-radius: 4px; font-size: 15px; font-weight: bold; cursor: pointer;
+  }
+  button:disabled { background: #999; cursor: wait; }
+  button:hover:not(:disabled) { background: #0a6068; }
+  .btn-row { display: flex; gap: 12px; justify-content: center; margin: 24px 0; }
+  .result { padding: 16px; background: #FFF7E0; border-radius: 6px; margin-top: 16px; }
+  .verdict-card { padding: 12px; margin: 10px 0; border-radius: 4px; border-left: 4px solid #0E7C86; background: #F4F6F9; }
+  .field-label { font-weight: bold; color: #7C5F8A; font-size: 11px; }
+  .hook { padding: 10px; background: white; margin: 8px 0; border-radius: 4px; border-left: 3px solid #E8A33D; }
+  .hook-trigger { font-weight: bold; color: #1F3A5F; font-size: 12px; }
+  .hook-product { color: #0E7C86; font-weight: bold; font-size: 11px; margin: 3px 0; }
+  .error { color: #C76B7A; padding: 12px; background: #FDECEA; border-radius: 4px; }
+  .loading { text-align: center; padding: 30px; color: #7C5F8A; }
+  .footer { text-align: center; color: #999; font-size: 11px; margin-top: 30px; }
+</style>
+</head>
+<body>
+<h1>📊 ライフプランAI Web版</h1>
+<div class="subtitle">顧客情報を入力 → 30秒で 40年キャッシュフローと保険提案フックを生成</div>
+
+<!-- 基本情報 -->
+<div class="card">
+  <h2>■ 基本情報</h2>
+  <div class="grid">
+    <div><label>顧客名(仮名OK)</label><input id="name" placeholder="田中太郎"></div>
+    <div><label>年齢</label><input id="age" type="number" placeholder="35"></div>
+    <div><label>性別</label>
+      <select id="gender"><option value="">選択</option><option>男</option><option>女</option></select>
+    </div>
+    <div><label>職業</label><input id="job" placeholder="会社員"></div>
+    <div><label>年収(額面 万円)</label><input id="income" type="number" placeholder="600"></div>
+    <div><label>想定退職年齢</label><input id="retire" type="number" placeholder="65"></div>
+  </div>
+</div>
+
+<!-- 家族 -->
+<div class="card">
+  <h2>■ 家族</h2>
+  <div class="grid">
+    <div><label>配偶者の有無</label>
+      <select id="spouse"><option value="">選択</option><option>あり</option><option>なし</option></select>
+    </div>
+    <div><label>配偶者 年齢</label><input id="spouse_age" type="number" placeholder="33"></div>
+    <div><label>配偶者 年収 (万円)</label><input id="spouse_income" type="number" placeholder="250"></div>
+    <div><label>子どもの人数と年齢</label><input id="children" placeholder="2人 (5歳, 2歳)"></div>
+  </div>
+</div>
+
+<!-- 資産 -->
+<div class="card">
+  <h2>■ 資産</h2>
+  <div class="grid">
+    <div><label>貯蓄 (万円)</label><input id="savings" type="number" placeholder="500"></div>
+    <div><label>投資 (万円)</label><input id="invest" type="number" placeholder="200"></div>
+    <div><label>住宅ローン残高 (万円)</label><input id="loan" type="number" placeholder="2000"></div>
+    <div><label>ローン残期間 (年)</label><input id="loan_years" type="number" placeholder="25"></div>
+  </div>
+</div>
+
+<!-- 月次支出 -->
+<div class="card">
+  <h2>■ 月次支出 (万円/月)</h2>
+  <div class="grid">
+    <div><label>生活費</label><input id="living" type="number" placeholder="25"></div>
+    <div><label>住居費</label><input id="housing" type="number" placeholder="10"></div>
+    <div><label>教育費</label><input id="edu" type="number" placeholder="2"></div>
+    <div><label>保険料</label><input id="ins" type="number" placeholder="3"></div>
+    <div><label>その他</label><input id="other" type="number" placeholder="5"></div>
+  </div>
+</div>
+
+<!-- リスク・要望 -->
+<div class="card">
+  <h2>■ 気になるリスク・要望</h2>
+  <label>気になるリスク(自由記述)</label>
+  <textarea id="risk" placeholder="夫の病気で就業不能3年 / 妻の育児離職2年"></textarea>
+  <label>その他要望</label>
+  <textarea id="want" placeholder="教育費と老後資金の両立方法を知りたい"></textarea>
+</div>
+
+<div class="btn-row">
+  <button id="run" onclick="run()">▶ シミュレーション実行 (30秒)</button>
+</div>
+
+<div id="output"></div>
+
+<div class="footer">
+  ※ 本ツールは AI の試算です。実際の家計設計は担当代理店にご相談ください。
+</div>
+
+<script>
+  function collect() {
+    return {
+      customer_name: document.getElementById('name').value,
+      age: Number(document.getElementById('age').value) || 0,
+      gender: document.getElementById('gender').value,
+      job: document.getElementById('job').value,
+      income: Number(document.getElementById('income').value) || 0,
+      retire_age: Number(document.getElementById('retire').value) || 65,
+      spouse: document.getElementById('spouse').value,
+      spouse_age: Number(document.getElementById('spouse_age').value) || 0,
+      spouse_income: Number(document.getElementById('spouse_income').value) || 0,
+      children: document.getElementById('children').value,
+      savings: Number(document.getElementById('savings').value) || 0,
+      invest: Number(document.getElementById('invest').value) || 0,
+      loan: Number(document.getElementById('loan').value) || 0,
+      loan_years: Number(document.getElementById('loan_years').value) || 0,
+      monthly: {
+        living: Number(document.getElementById('living').value) || 0,
+        housing: Number(document.getElementById('housing').value) || 0,
+        edu: Number(document.getElementById('edu').value) || 0,
+        ins: Number(document.getElementById('ins').value) || 0,
+        other: Number(document.getElementById('other').value) || 0,
+      },
+      risk: document.getElementById('risk').value,
+      want: document.getElementById('want').value,
+    };
+  }
+
+  function run() {
+    if (!document.getElementById('age').value || !document.getElementById('income').value) {
+      alert('年齢と年収は必須です'); return;
+    }
+    const btn = document.getElementById('run');
+    btn.disabled = true; btn.textContent = '実行中… (30秒)';
+    document.getElementById('output').innerHTML = '<div class="loading">🤔 Gemini が計算中…</div>';
+    google.script.run
+      .withSuccessHandler(resp => {
+        btn.disabled = false; btn.textContent = '▶ シミュレーション実行 (30秒)';
+        if (!resp.ok) { showError(resp.error); return; }
+        showResult(resp.result);
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false; btn.textContent = '▶ シミュレーション実行 (30秒)';
+        showError(err.message);
+      })
+      .runSimulationFromWebApp(collect());
+  }
+
+  function showResult(r) {
+    const s = r.summary;
+    let html = '<div class="card"><h2>■ シミュレーション結果 サマリ</h2><div class="verdict-card">';
+    html += `<div class="field-label">最大貯蓄年</div>${s.peak_saving_year}年 (約 ${s.peak_saving_amount.toLocaleString()}万円)<br><br>`;
+    html += `<div class="field-label">最低貯蓄年</div>${s.lowest_saving_year}年 (約 ${s.lowest_saving_amount.toLocaleString()}万円)<br><br>`;
+    html += `<div class="field-label">破綻年</div>${s.breakdown_year === 'null' || !s.breakdown_year ? 'なし' : s.breakdown_year + '年'}<br><br>`;
+    html += `<div class="field-label">リスク期間</div>${escapeHtml(s.risk_periods)}<br><br>`;
+    html += `<div class="field-label">総評</div>${escapeHtml(s.comment)}`;
+    html += '</div></div>';
+
+    if (r.insurance_hooks && r.insurance_hooks.length) {
+      html += '<div class="card"><h2>■ 保険提案フック</h2>';
+      r.insurance_hooks.forEach(h => {
+        html += `<div class="hook">
+          <div class="hook-trigger">${escapeHtml(h.trigger)}</div>
+          <div class="hook-product">▸ ${escapeHtml(h.product_type)}</div>
+          <div style="color:#C76B7A;font-size:11px;">目安: ${escapeHtml(h.amount_hint)}</div>
+          <div style="font-size:11px;margin-top:4px;">${escapeHtml(h.reason)}</div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+
+    if (r.docUrl) {
+      html += `<div class="btn-row"><a href="${r.docUrl}" target="_blank"><button>📄 顧客向けPDFレポートを開く</button></a></div>`;
+    }
+    document.getElementById('output').innerHTML = html;
+  }
+
+  function showError(msg) {
+    document.getElementById('output').innerHTML = '<div class="card"><div class="error">エラー: ' + escapeHtml(msg) + '</div></div>';
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+</script>
+</body>
+</html>
