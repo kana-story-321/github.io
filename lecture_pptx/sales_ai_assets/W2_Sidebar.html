@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  body { font-family: 'Yu Gothic UI', -apple-system, sans-serif; font-size: 13px; padding: 12px; margin: 0; color: #1a1a1a; }
+  h2 { color: #1F3A5F; font-size: 15px; margin: 0 0 12px; }
+  label { display: block; font-weight: bold; color: #1F3A5F; margin: 10px 0 4px; font-size: 12px; }
+  input, select, textarea { width: 100%; padding: 8px; border: 1px solid #D7DCE3; border-radius: 4px; font-size: 13px; font-family: inherit; box-sizing: border-box; }
+  textarea { min-height: 80px; resize: vertical; }
+  button { width: 100%; padding: 10px; background: #0E7C86; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 14px; }
+  button:disabled { background: #999; cursor: wait; }
+  button:hover:not(:disabled) { background: #0a6068; }
+  .result { padding: 12px; background: #FFF7E0; border-radius: 6px; margin-top: 14px; border-left: 4px solid #E8A33D; }
+  .answer { font-size: 13px; line-height: 1.6; color: #1a1a1a; }
+  .field-label { font-weight: bold; color: #7C5F8A; font-size: 11px; margin-top: 10px; }
+  .script { padding: 8px; background: #E6F4EA; border-radius: 4px; margin-top: 4px; font-size: 12px; font-style: italic; color: #1F3A5F; }
+  .tip { padding: 8px; background: #E3F2FD; border-radius: 4px; margin-top: 4px; font-size: 12px; }
+  .refs { color: #7C5F8A; font-size: 10px; margin-top: 6px; }
+  .error { color: #C76B7A; padding: 10px; background: #FDECEA; border-radius: 4px; }
+  .loading { text-align: center; padding: 20px; color: #7C5F8A; }
+</style>
+</head>
+<body>
+<h2>💼 営業ノウハウAI(トップ営業マンに質問)</h2>
+
+<label>あなたのお名前(任意)</label>
+<input id="user" type="text" placeholder="例: 山田(新人)">
+
+<label>お客様のタイプ(該当あれば)</label>
+<select id="ctype">
+  <option value="">選択なし</option>
+  <option>慎重派</option>
+  <option>決断早</option>
+  <option>論理派</option>
+  <option>感情派</option>
+  <option>経営者</option>
+  <option>シニア</option>
+  <option>若手夫婦</option>
+  <option>主婦(主夫)</option>
+</select>
+
+<label>質問(自由に書いてください)</label>
+<textarea id="q" placeholder="例: 初回訪問で緊張しています。話の切り出し方を教えてください。"></textarea>
+
+<button id="ask" onclick="ask()">▶ 質問する</button>
+
+<div id="output"></div>
+
+<script>
+  function ask() {
+    const q = document.getElementById('q').value.trim();
+    if (!q) { alert('質問を入力してください'); return; }
+    const btn = document.getElementById('ask');
+    btn.disabled = true; btn.textContent = '考え中… (20〜30秒)';
+    document.getElementById('output').innerHTML = '<div class="loading">🤔 トップ営業マンならこう答えるかな…</div>';
+
+    const input = {
+      user: document.getElementById('user').value,
+      customerType: document.getElementById('ctype').value,
+      question: q,
+    };
+
+    google.script.run
+      .withSuccessHandler(resp => {
+        btn.disabled = false; btn.textContent = '▶ 質問する';
+        if (!resp.ok) { showError(resp.error); return; }
+        showResult(resp.result);
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false; btn.textContent = '▶ 質問する';
+        showError(err.message);
+      })
+      .askQuestion(input);
+  }
+
+  function showResult(r) {
+    let html = '<div class="result">';
+    html += '<div class="answer">' + escapeHtml(r.answer).replace(/\n/g, '<br>') + '</div>';
+    html += '<div class="field-label">🗣 決めゼリフ例</div>';
+    html += '<div class="script">' + escapeHtml(r.script_example) + '</div>';
+    html += '<div class="field-label">💡 応用のコツ</div>';
+    html += '<div class="tip">' + escapeHtml(r.next_tip) + '</div>';
+    if (r.referenced_ids && r.referenced_ids.length) {
+      html += '<div class="refs">📚 参照ノウハウ: ' + r.referenced_ids.join(', ') + '</div>';
+    }
+    html += '</div>';
+    document.getElementById('output').innerHTML = html;
+  }
+
+  function showError(msg) {
+    document.getElementById('output').innerHTML = '<div class="error">エラー: ' + escapeHtml(msg) + '</div>';
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+</script>
+</body>
+</html>
