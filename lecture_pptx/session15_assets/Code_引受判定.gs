@@ -14,7 +14,7 @@
 
 const MASTER_SHEET = '引受判定マスタ';
 const HISTORY_SHEET = '判定履歴';
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-flash-latest';  // 常に最新の Flash モデルを使う (2.5-flash 等の固定バージョンは新規利用不可になることがある)
 
 // ═══════════════════════════════════════════════════════════
 // カスタムメニュー
