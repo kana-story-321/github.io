@@ -10,6 +10,14 @@ QRコードを読む → クッキーを割って占い → 答え合わせの�
 | `index.html` / `style.css` / `app.js` | ページ本体 |
 | `worker/` | AI中継サーバー（任意）。APIキーをブラウザに出さないために使います |
 
+## 公開先
+
+`https://ririo.ai-mottainai.jp/` で公開する設定です（リポジトリ直下の `CNAME`）。トップを開くと `kuchikomi/` に移動します。
+
+1. GitHub の Settings → Pages で、公開元を `main` ブランチのルートにします。
+2. Cloudflare（ai-mottainai.jp のDNS）に CNAME レコード `ririo` → `kana-story-321.github.io` を追加します。証明書の発行が終わるまでは、プロキシをオフ（DNS only）にしておきます。
+3. Settings → Pages の Custom domain に `ririo.ai-mottainai.jp` が入っていることを確認し、「Enforce HTTPS」をオンにします。
+
 ## 使い方
 
 1. `config.js` の `shopName` と `gbpReviewUrl` を設定します。`gbpReviewUrl` は、Googleビジネスプロフィールの「クチコミを依頼」で表示されるURLです。

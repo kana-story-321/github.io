@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 # 口コミページを置くURL（GitHub Pages など）。ここ以外からの呼び出しは断ります。
-ALLOWED_ORIGIN = "https://kana-story-321.github.io"
+ALLOWED_ORIGIN = "https://ririo.ai-mottainai.jp"
 MODEL = "claude-opus-5-5"
 
 # APIキーは秘密情報なのでここには書かず、次のコマンドで登録します:
