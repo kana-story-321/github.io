@@ -11,7 +11,7 @@ window.SHOP_CONFIG = {
   gbpDirect: false, // 上を g.page/r/.../review に置き換えたら true に
 
   // AI中継サーバー（worker/ をデプロイしたURL）。空のままなら、AIなしの質問・文章作成で動きます。
-  // 例: https://kuchikomi-ai.example.workers.dev
+  // 例: https://gbp-ai.example.workers.dev
   aiEndpoint: "",
 
   // アンケート結果の送り先（Googleスプレッドシート用のApps Script URL など）。空なら送信しません。
