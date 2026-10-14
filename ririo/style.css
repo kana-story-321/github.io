@@ -107,6 +107,7 @@ main { max-width: 520px; margin: 0 auto; padding: 0 16px 48px; }
   display: flex; align-items: center; justify-content: center;
   box-shadow: inset 0 -8px 0 rgba(0, 0, 0, .08);
 }
+.chara svg { width: 124px; height: 124px; display: block; }
 .chara.boing { animation: boing .45s ease; }
 .rarity {
   position: absolute; right: -8px; top: 0; padding: 0 10px; border-radius: 999px;
@@ -195,6 +196,7 @@ dialog h2 { margin: 0; font-size: 20px; }
 .zukan-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
 .zk { border-radius: 14px; background: var(--chip); padding: 8px 4px; font-size: 11px; line-height: 1.3; }
 .zk .e { font-size: 32px; display: block; }
+.zk .e svg { width: 60px; height: 60px; display: block; margin: 0 auto; }
 .zk.locked .e { filter: grayscale(1) brightness(0); opacity: .18; }
 .zk .n { font-size: 10px; color: var(--ink-soft); }
 

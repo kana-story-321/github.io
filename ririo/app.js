@@ -44,6 +44,18 @@
     const label = seasonLabel(p);
     return label && !p.name.includes(label.replace("限定", "")) ? `${p.name}（${label}）` : p.name;
   };
+  // キャラの絵（chara.js）。絵がなければ絵文字
+  const art = (p) => (window.CHARA_SVG && window.CHARA_SVG(p.id)) || p.emoji;
+  function artImage(p) {
+    const svgText = window.CHARA_SVG && window.CHARA_SVG(p.id);
+    if (!svgText) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+    });
+  }
   const SPARKS = activeSeasons.length ? activeSeasons.flatMap((s) => s.sparks || []) : ["✨", "⭐", "💫"];
   const hashtag = "#" + C.shopName.replace(/[\s"]/g, "");
 
@@ -224,7 +236,7 @@
       const owned = z[p.id];
       const tag = p.seasons ? `<div class="n ${isActive(p) ? "now" : ""}">${isActive(p) ? "出現中！" : seasonLabel(p)}</div>` : "";
       return `<div class="zk ${owned ? "" : "locked"}" ${owned ? `data-wall="${p.id}" role="button" tabindex="0"` : ""}>
-        <span class="e">${p.emoji}</span>${owned ? p.chara : "？？？"}
+        <span class="e">${art(p)}</span>${owned ? p.chara : "？？？"}
         <div class="n">${p.rarity}${owned ? ` ・ ${owned}回` : ""}</div>${tag}</div>`;
     };
     const regular = C.products.filter((p) => !p.seasons);
@@ -250,7 +262,7 @@
     $("slip").className = "slip r-" + p.rarity;
     $("rank").textContent = fortune.rank;
     const chara = $("chara");
-    chara.textContent = p.emoji;
+    chara.innerHTML = art(p);
     chara.style.background = p.color + "33";
     $("rarity").textContent = p.rarity;
     $("rarity").className = "rarity " + p.rarity;
@@ -300,8 +312,11 @@
     // うすい柄（キャラの絵文字を散らす）
     g.globalAlpha = dark ? 0.16 : 0.12;
     g.font = "90px serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    const img = await artImage(p);
     for (let y = 60, row = 0; y < H; y += 190, row++) {
-      for (let x = row % 2 ? 95 : 0; x < W + 100; x += 190) g.fillText(p.emoji, x, y);
+      for (let x = row % 2 ? 95 : 0; x < W + 100; x += 190) {
+        if (img) g.drawImage(img, x - 60, y - 60, 120, 120); else g.fillText(p.emoji, x, y);
+      }
     }
     g.globalAlpha = 1;
 
@@ -315,7 +330,8 @@
     }
     g.fillStyle = "rgba(255,253,248,.92)";
     g.beginPath(); g.arc(W / 2, cy, 330, 0, Math.PI * 2); g.fill();
-    g.font = "380px serif"; g.fillText(p.emoji, W / 2, cy + 20);
+    if (img) g.drawImage(img, W / 2 - 290, cy - 290, 580, 580);
+    else { g.font = "380px serif"; g.fillText(p.emoji, W / 2, cy + 20); }
 
     // レア度
     g.fillStyle = p.rarity === "SSR" ? "#d9a520" : p.rarity === "SR" ? "#8c6bd1" : p.rarity === "R" ? "#4d9a8a" : "#4a2f22";
