@@ -16,10 +16,31 @@
   };
   if (params.has("reset")) store.set("today", null);
 
-  const todayKey = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  // ?date=2026-10-14 で日付を変えて季節の表示を確認できます
+  const now = (() => {
+    const t = params.get("date") ? new Date(params.get("date") + "T12:00:00") : new Date();
+    return isNaN(t) ? new Date() : t;
   })();
+  const todayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+
+  // ---------- 季節 ----------
+  const pad = (n) => String(n).padStart(2, "0");
+  const monthDay = `${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const inRange = (s) => (s.from <= s.to ? monthDay >= s.from && monthDay <= s.to : monthDay >= s.from || monthDay <= s.to);
+  const spanDays = (s) => { const d = (md) => +md.slice(0, 2) * 31 + +md.slice(3); return (d(s.to) - d(s.from) + 372) % 372; };
+  const seasons = C.seasons || [];
+  const activeSeasons = seasons.filter(inRange).sort((a, b) => spanDays(a) - spanDays(b)); // 期間が短い＝より特別な季節が先
+  const activeIds = new Set(activeSeasons.map((s) => s.id));
+  const isActive = (p) => !p.seasons || p.seasons.some((id) => activeIds.has(id));
+  const activeProducts = C.products.filter(isActive);
+  const seasonName = (id) => (seasons.find((s) => s.id === id) || {}).name || id;
+  const seasonLabel = (p) => {
+    if (!p.seasons) return "";
+    const id = p.seasons.find((x) => activeIds.has(x)) || p.seasons[0];
+    return `${seasonName(id)}限定`;
+  };
+  const SPARKS = activeSeasons.length ? activeSeasons.flatMap((s) => s.sparks || []) : ["✨", "⭐", "💫"];
+  const hashtag = "#" + C.shopName.replace(/[\s"]/g, "");
 
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const productById = (id) => C.products.find((p) => p.id === id);
@@ -53,22 +74,34 @@
     // 箱のシールごとにQRを変えて ?p=canele のように渡すと、そのキャラが出る
     let product = productById(params.get("p"));
     if (!product) {
-      const total = C.products.reduce((sum, p) => sum + RARITY_WEIGHT[p.rarity] / countOfRarity(p.rarity), 0);
+      const total = activeProducts.reduce((sum, p) => sum + weightOf(p), 0);
       let r = Math.random() * total;
-      for (const p of C.products) {
-        r -= RARITY_WEIGHT[p.rarity] / countOfRarity(p.rarity);
+      for (const p of activeProducts) {
+        r -= weightOf(p);
         if (r <= 0) { product = p; break; }
       }
-      product = product || C.products[0];
+      product = product || activeProducts[0];
     }
     const rank = product.rarity === "SSR" ? "大吉" : pick(C.luckRanks);
     return { productId: product.id, rank, lucky: pick(C.luckyItems), date: todayKey };
   }
-  function countOfRarity(r) { return C.products.filter((p) => p.rarity === r).length; }
+  function countOfRarity(r) { return activeProducts.filter((p) => p.rarity === r).length; }
+  // 季節限定キャラは、その季節のあいだ出やすくする
+  function weightOf(p) { return (RARITY_WEIGHT[p.rarity] / countOfRarity(p.rarity)) * (p.seasons ? C.seasonalBoost || 1 : 1); }
 
   // ---------- cookie ----------
   const cookie = { taps: 0, need: 5 + Math.floor(Math.random() * 4), done: false, crackLen: 0 };
   const TAUNTS = ["いいね！", "その調子！", "ヒビが入った！", "もうすこし…", "あと一押し！", "割れそう…！"];
+
+  // 季節ごとのクッキーの飾り
+  const theme = (activeSeasons.find((s) => s.theme) || {}).theme || "";
+  const COOKIE_DECO = {
+    halloween: `
+      <polygon points="78,92 102,92 90,72" fill="#3b1f0e"/><polygon points="138,92 162,92 150,72" fill="#3b1f0e"/>
+      <path d="M70 140 L90 160 L105 145 L120 162 L135 145 L150 160 L170 140 Q120 190 70 140 Z" fill="#3b1f0e"/>`,
+    christmas: [[70, 70], [120, 50], [170, 75], [60, 150], [180, 160], [120, 200], [100, 110], [150, 120]]
+      .map(([x, y]) => `<circle cx="${x}" cy="${y}" r="6" fill="#fff" opacity=".9"/>`).join(""),
+  };
 
   function buildCookie() {
     const pts = [];
@@ -83,8 +116,9 @@
     const body = `
       <circle cx="120" cy="120" r="104" fill="#c47f3a"/>
       <circle cx="120" cy="116" r="100" fill="url(#dough)"/>
-      ${chips.map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="9" ry="7" fill="#5a3424" transform="rotate(${(x * y) % 60} ${x} ${y})"/>`).join("")}
-      <path d="M45 95 q20 -40 70 -55" stroke="#fff" stroke-opacity=".35" stroke-width="8" fill="none" stroke-linecap="round"/>`;
+      ${(theme === "halloween" ? [] : chips).map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="9" ry="7" fill="#5a3424" transform="rotate(${(x * y) % 60} ${x} ${y})"/>`).join("")}
+      <path d="M45 95 q20 -40 70 -55" stroke="#fff" stroke-opacity=".35" stroke-width="8" fill="none" stroke-linecap="round"/>
+      ${COOKIE_DECO[theme] || ""}`;
     $("halfLeft").innerHTML = body;
     $("halfRight").innerHTML = body;
 
@@ -101,7 +135,7 @@
       const el = document.createElement("span");
       const isSpark = Math.random() < 0.25;
       el.className = isSpark ? "spark" : "crumb";
-      if (isSpark) el.textContent = pick(["✨", "⭐", "💫"]);
+      if (isSpark) el.textContent = pick(SPARKS);
       el.style.left = x + "px";
       el.style.top = y + "px";
       el.style.setProperty("--dx", (Math.random() * 160 - 80) + "px");
@@ -176,17 +210,22 @@
   }
   function updateZukanCount() {
     const z = store.get("zukan", {});
-    $("zukanCount").textContent = `${Object.keys(z).length}/${C.products.length}`;
+    $("zukanCount").textContent = `${Object.keys(z).filter(productById).length}/${C.products.length}`;
   }
   function openZukan() {
     const z = store.get("zukan", {});
-    $("zukanProgress").textContent = `${Object.keys(z).length}/${C.products.length}`;
-    $("zukanGrid").innerHTML = C.products.map((p) => {
+    $("zukanProgress").textContent = `${Object.keys(z).filter(productById).length}/${C.products.length}`;
+    const cell = (p) => {
       const owned = z[p.id];
+      const tag = p.seasons ? `<div class="n ${isActive(p) ? "now" : ""}">${isActive(p) ? "出現中！" : seasonLabel(p)}</div>` : "";
       return `<div class="zk ${owned ? "" : "locked"}">
         <span class="e">${p.emoji}</span>${owned ? p.chara : "？？？"}
-        <div class="n">${p.rarity}${owned ? ` ・ ${owned}回` : ""}</div></div>`;
-    }).join("");
+        <div class="n">${p.rarity}${owned ? ` ・ ${owned}回` : ""}</div>${tag}</div>`;
+    };
+    const regular = C.products.filter((p) => !p.seasons);
+    const seasonal = C.products.filter((p) => p.seasons).sort((a, b) => isActive(b) - isActive(a));
+    $("zukanGrid").innerHTML = `<p class="zk-head">定番</p>${regular.map(cell).join("")}
+      <p class="zk-head">季節限定 <small>季節ごとに入れかわります</small></p>${seasonal.map(cell).join("")}`;
     $("zukan").showModal();
   }
 
@@ -208,7 +247,7 @@
     $("rarity").textContent = p.rarity;
     $("rarity").className = "rarity " + p.rarity;
     $("resultTitle").textContent = p.chara;
-    $("productName").textContent = `今日のお菓子：${p.name}`;
+    $("productName").textContent = `今日のお菓子：${p.name}${p.seasons ? `（${seasonLabel(p)}）` : ""}`;
     $("fortuneText").textContent = p.fortune;
     $("keyword").textContent = `〈${p.keyword}〉`;
     $("luckyItem").textContent = fortune.lucky;
@@ -245,12 +284,12 @@
     g.font = "500 40px 'Zen Maru Gothic', sans-serif";
     wrapText(g, p.fortune, 540, 990, 860, 60);
     g.font = "700 36px 'Zen Maru Gothic', sans-serif"; g.fillStyle = "#e2725b";
-    g.fillText(`#${C.shopName}  #おみくじクッキー`, 540, 1270);
+    g.fillText(`${hashtag}  #おみくじクッキー`, 540, 1270);
     const blob = await new Promise((r) => cv.toBlob(r, "image/png"));
     const file = new File([blob], "omikuji.png", { type: "image/png" });
     try {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], text: `#${C.shopName} #おみくじクッキー` });
+        await navigator.share({ files: [file], text: `${hashtag} #おみくじクッキー` });
         return;
       }
     } catch { /* fall through to download */ }
@@ -284,7 +323,13 @@
 
   const QUESTIONS = [
     { id: "products", type: "multi", title: () => "答え合わせ！今日食べた（買った）のはどれ？", sub: "いくつでも選べます",
-      options: () => C.products.map((p) => p.name).concat(["その他"]) },
+      options: () => {
+        // 今の季節の商品だけ出す（シールのQRで来た商品は季節外でも出す）
+        const list = [...activeProducts.filter((p) => p.seasons), ...activeProducts.filter((p) => !p.seasons)]; // 季節ものを先頭に
+        const preset = productById(params.get("p"));
+        if (preset && !list.includes(preset)) list.push(preset);
+        return list.map((p) => p.name).concat(["その他"]);
+      } },
     { id: "focus", type: "single", when: () => eatenNames().length > 1, title: () => "いちばん印象に残ったのは？",
       options: () => eatenNames() },
     { id: "check", type: "single",
@@ -497,7 +542,7 @@
     return {
       shopName: C.shopName,
       fortuneCharacter: fortuneProduct().name,
-      products: C.products.map((p) => p.name),
+      products: activeProducts.map((p) => p.name),
       answers: state.order
         .filter((id) => !questionFor(id).shop)
         .map((id) => {
@@ -618,7 +663,8 @@
     show("screenFinish");
     const [trait, line] = TRAIT[ans("check")] || ["マイペースタイプ", "今週は、自分のペースを守ると吉。"];
     const eaten = new Set(eatenNames());
-    const next = C.products.find((p) => !eaten.has(p.name) && p.id !== state.fortune.productId) || fortuneProduct();
+    const candidates = activeProducts.filter((p) => !eaten.has(p.name) && p.id !== state.fortune.productId);
+    const next = candidates.find((p) => p.seasons) || candidates[0] || fortuneProduct();
     $("deep").innerHTML = `<h3>🔓 くわしい運勢</h3><p></p><p style="margin-top:6px"></p>`;
     const ps = $("deep").querySelectorAll("p");
     ps[0].textContent = `${focusName()}を選んだあなたは「${trait}」。${line}`;
@@ -666,6 +712,15 @@
   // ---------- boot ----------
   function boot() {
     $("shopName").textContent = C.shopName;
+    if (theme) document.body.classList.add("theme-" + theme);
+    const banner = activeSeasons.find((s) => s.banner);
+    if (banner) { $("seasonBanner").textContent = banner.banner; $("seasonBanner").hidden = false; }
+    if (activeSeasons.length) {
+      $("seasonDeco").innerHTML = SPARKS.slice(0, 5).map((e, i) => {
+        const [x, y] = [[-2, 8], [88, 4], [-6, 70], [92, 62], [46, 96]][i];
+        return `<span style="--i:${i};left:${x}%;top:${y}%">${e}</span>`;
+      }).join("");
+    }
     if (!C.gbpDirect) $("step2").textContent = "Googleマップで「クチコミを書く」→ ☆ をタップ";
     document.title = `おみくじクッキー｜${C.shopName}`;
     updateZukanCount();

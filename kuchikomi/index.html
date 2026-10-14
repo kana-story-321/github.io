@@ -22,9 +22,11 @@
     <!-- 1. クッキーを割る -->
     <section class="screen" id="screenCookie" aria-labelledby="cookieTitle">
       <h1 class="title" id="cookieTitle">今日のおみくじクッキー</h1>
+      <p class="season-banner" id="seasonBanner" hidden></p>
       <p class="lead" id="cookieLead">タップして割ってね</p>
 
       <div class="cookie-stage" id="cookieStage">
+        <div class="season-deco" id="seasonDeco" aria-hidden="true"></div>
         <button class="cookie-btn" id="cookieBtn" type="button" aria-label="クッキーをタップして割る">
           <svg id="cookieSvg" viewBox="0 0 240 240" aria-hidden="true">
             <defs>

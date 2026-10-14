@@ -205,6 +205,25 @@ dialog h2 { margin: 0; font-size: 20px; }
 }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 
+/* ---------- season ---------- */
+.season-banner {
+  display: inline-block; margin: 6px 0 0; padding: 4px 14px; border-radius: 999px;
+  background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; animation: pop .5s ease both;
+}
+.season-deco { position: absolute; inset: -20px; pointer-events: none; }
+.season-deco span {
+  position: absolute; font-size: 26px; opacity: .85;
+  animation: floaty calc(3s + var(--i) * .4s) ease-in-out infinite alternate;
+}
+.zk-head { grid-column: 1 / -1; margin: 6px 0 0; text-align: left; font-weight: 900; font-size: 13px; }
+.zk-head small { font-weight: 500; color: var(--ink-soft); font-size: 11px; }
+.zk .n.now { color: var(--accent); font-weight: 900; }
+body.theme-halloween { --bg: #fdeedd; --accent: #e8701c; --chip: #fff3e3; --line: #f0d4b4; }
+body.theme-halloween .season-banner { background: linear-gradient(90deg, #5b2d8a, #e8701c); }
+body.theme-christmas { --bg: #f6f3ee; --accent: #c8352e; --line: #e2d9cc; }
+body.theme-christmas .season-banner { background: linear-gradient(90deg, #2f6b3a, #c8352e); }
+@keyframes floaty { from { transform: translateY(0) rotate(-8deg); } to { transform: translateY(-14px) rotate(8deg); } }
+
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes breathe { 50% { transform: scale(1.03) rotate(-2deg); } }
 @keyframes squish { 40% { transform: scale(1.08, .9); } 70% { transform: scale(.96, 1.04); } }
