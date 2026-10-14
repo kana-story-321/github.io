@@ -217,6 +217,7 @@ dialog h2 { margin: 0; font-size: 20px; }
 }
 .zk-head { grid-column: 1 / -1; margin: 6px 0 0; text-align: left; font-weight: 900; font-size: 13px; }
 .zk-head small { font-weight: 500; color: var(--ink-soft); font-size: 11px; }
+.zk[data-wall] { cursor: pointer; }
 .zk .n.now { color: var(--accent); font-weight: 900; }
 body.theme-halloween { --bg: #fdeedd; --accent: #e8701c; --chip: #fff3e3; --line: #f0d4b4; }
 body.theme-halloween .season-banner { background: linear-gradient(90deg, #5b2d8a, #e8701c); }

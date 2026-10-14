@@ -39,6 +39,11 @@
     const id = p.seasons.find((x) => activeIds.has(x)) || p.seasons[0];
     return `${seasonName(id)}限定`;
   };
+  // 商品名に季節名が入っていれば「（〇〇限定）」は付けない
+  const productLabel = (p) => {
+    const label = seasonLabel(p);
+    return label && !p.name.includes(label.replace("限定", "")) ? `${p.name}（${label}）` : p.name;
+  };
   const SPARKS = activeSeasons.length ? activeSeasons.flatMap((s) => s.sparks || []) : ["✨", "⭐", "💫"];
   const hashtag = "#" + C.shopName.replace(/[\s"]/g, "");
 
@@ -218,7 +223,7 @@
     const cell = (p) => {
       const owned = z[p.id];
       const tag = p.seasons ? `<div class="n ${isActive(p) ? "now" : ""}">${isActive(p) ? "出現中！" : seasonLabel(p)}</div>` : "";
-      return `<div class="zk ${owned ? "" : "locked"}">
+      return `<div class="zk ${owned ? "" : "locked"}" ${owned ? `data-wall="${p.id}" role="button" tabindex="0"` : ""}>
         <span class="e">${p.emoji}</span>${owned ? p.chara : "？？？"}
         <div class="n">${p.rarity}${owned ? ` ・ ${owned}回` : ""}</div>${tag}</div>`;
     };
@@ -226,6 +231,9 @@
     const seasonal = C.products.filter((p) => p.seasons).sort((a, b) => isActive(b) - isActive(a));
     $("zukanGrid").innerHTML = `<p class="zk-head">定番</p>${regular.map(cell).join("")}
       <p class="zk-head">季節限定 <small>季節ごとに入れかわります</small></p>${seasonal.map(cell).join("")}`;
+    for (const el of $("zukanGrid").querySelectorAll("[data-wall]")) {
+      el.addEventListener("click", () => makeWallpaper(productById(el.dataset.wall), null));
+    }
     $("zukan").showModal();
   }
 
@@ -247,7 +255,7 @@
     $("rarity").textContent = p.rarity;
     $("rarity").className = "rarity " + p.rarity;
     $("resultTitle").textContent = p.chara;
-    $("productName").textContent = `今日のお菓子：${p.name}${p.seasons ? `（${seasonLabel(p)}）` : ""}`;
+    $("productName").textContent = `今日のお菓子：${productLabel(p)}`;
     $("fortuneText").textContent = p.fortune;
     $("keyword").textContent = `〈${p.keyword}〉`;
     $("luckyItem").textContent = fortune.lucky;
@@ -267,40 +275,97 @@
     pokeChara.t = setTimeout(() => b.classList.remove("show"), 1600);
   }
 
-  // ---------- share card ----------
-  async function shareCard() {
-    const f = store.get("today", null);
-    if (!f) return;
-    const p = productById(f.productId);
+  // ---------- 待ち受け画像 ----------
+  // アプリとして残らない前提で、キャラを「待ち受け」として持ち帰ってもらう。
+  // 上部は時計、下部はボタンが重なるので、大事な情報は中央にまとめる。
+  const WALL_BG = {
+    halloween: ["#3a1f4f", "#e8701c"],
+    christmas: ["#1f5a34", "#c8352e"],
+  };
+  async function makeWallpaper(p, fortune) {
+    try { await document.fonts.ready; } catch { /* ignore */ }
+    const W = 1170, H = 2532;
     const cv = document.createElement("canvas");
-    cv.width = 1080; cv.height = 1350;
+    cv.width = W; cv.height = H;
     const g = cv.getContext("2d");
-    g.fillStyle = "#fbf3e6"; g.fillRect(0, 0, 1080, 1350);
-    g.fillStyle = p.color + "55"; g.beginPath(); g.arc(540, 520, 260, 0, Math.PI * 2); g.fill();
-    g.textAlign = "center"; g.fillStyle = "#4a2f22";
-    g.font = "900 64px 'Zen Maru Gothic', sans-serif"; g.fillText(`今日の運勢  ${f.rank}`, 540, 180);
-    g.font = "260px serif"; g.fillText(p.emoji, 540, 610);
-    g.font = "900 72px 'Zen Maru Gothic', sans-serif"; g.fillText(p.chara, 540, 900);
-    g.font = "500 40px 'Zen Maru Gothic', sans-serif";
-    wrapText(g, p.fortune, 540, 990, 860, 60);
-    g.font = "700 36px 'Zen Maru Gothic', sans-serif"; g.fillStyle = "#e2725b";
-    g.fillText(`${hashtag}  #おみくじクッキー`, 540, 1270);
+    const font = (w, px) => `${w} ${px}px 'Zen Maru Gothic', sans-serif`;
+    const dark = p.seasons && WALL_BG[theme] && p.seasons.includes(theme);
+
+    // 背景：キャラの色のグラデーション（季節限定キャラは季節の色）
+    const grad = g.createLinearGradient(0, 0, 0, H);
+    if (dark) { grad.addColorStop(0, WALL_BG[theme][0]); grad.addColorStop(1, WALL_BG[theme][1]); }
+    else { grad.addColorStop(0, "#fffaf2"); grad.addColorStop(1, p.color + "aa"); }
+    g.fillStyle = grad; g.fillRect(0, 0, W, H);
+
+    // うすい柄（キャラの絵文字を散らす）
+    g.globalAlpha = dark ? 0.16 : 0.12;
+    g.font = "90px serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    for (let y = 60, row = 0; y < H; y += 190, row++) {
+      for (let x = row % 2 ? 95 : 0; x < W + 100; x += 190) g.fillText(p.emoji, x, y);
+    }
+    g.globalAlpha = 1;
+
+    // SSR は光の輪
+    const cy = 1330;
+    if (p.rarity === "SSR" || p.rarity === "SR") {
+      const glow = g.createRadialGradient(W / 2, cy, 120, W / 2, cy, 520);
+      glow.addColorStop(0, p.rarity === "SSR" ? "rgba(255,220,120,.9)" : "rgba(200,177,240,.8)");
+      glow.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = glow; g.fillRect(0, cy - 560, W, 1120);
+    }
+    g.fillStyle = "rgba(255,253,248,.92)";
+    g.beginPath(); g.arc(W / 2, cy, 330, 0, Math.PI * 2); g.fill();
+    g.font = "380px serif"; g.fillText(p.emoji, W / 2, cy + 20);
+
+    // レア度
+    g.fillStyle = p.rarity === "SSR" ? "#d9a520" : p.rarity === "SR" ? "#8c6bd1" : p.rarity === "R" ? "#4d9a8a" : "#4a2f22";
+    g.beginPath(); g.roundRect(W / 2 + 170, cy - 340, 170, 80, 40); g.fill();
+    g.fillStyle = "#fff"; g.font = font(900, 48); g.fillText(p.rarity, W / 2 + 255, cy - 298);
+
+    const ink = dark ? "#ffffff" : "#4a2f22";
+    const soft = dark ? "rgba(255,255,255,.85)" : "#8a6a58";
+    g.fillStyle = ink;
+    let size = 96;
+    do { g.font = font(900, size); size -= 4; } while (g.measureText(p.chara).width > W - 120 && size > 40);
+    g.fillText(p.chara, W / 2, cy + 450);
+    g.fillStyle = soft; g.font = font(700, 44);
+    g.fillText(productLabel(p), W / 2, cy + 540);
+    if (fortune) {
+      g.font = font(700, 46); g.fillStyle = ink;
+      g.fillText(`${fortune.date.replace(/-/g, ".")} の運勢　${fortune.rank}`, W / 2, cy + 640);
+    }
+    g.font = font(500, 42); g.fillStyle = soft;
+    wrapText(g, p.fortune, W / 2, cy + 720, 900, 64);
+
+    g.font = font(900, 46); g.fillStyle = ink;
+    g.fillText(C.shopName, W / 2, H - 330);
+    g.font = font(500, 34); g.fillStyle = soft;
+    g.fillText("毎日1枚、キャラが変わるおみくじクッキー", W / 2, H - 270);
+    g.textBaseline = "alphabetic";
+
     const blob = await new Promise((r) => cv.toBlob(r, "image/png"));
-    const file = new File([blob], "omikuji.png", { type: "image/png" });
+    const name = `ririo-${p.id}.png`;
+    const file = new File([blob], name, { type: "image/png" });
     try {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], text: `${hashtag} #おみくじクッキー` });
         return;
       }
-    } catch { /* fall through to download */ }
+    } catch (e) { if (e && e.name === "AbortError") return; }
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = "omikuji.png"; a.click();
-    toast("画像を保存しました");
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    toast("待ち受け画像を保存しました");
+  }
+  async function shareCard() {
+    const f = store.get("today", null);
+    if (!f) return;
+    $("shareCard").disabled = true;
+    try { await makeWallpaper(productById(f.productId), f); } finally { $("shareCard").disabled = false; }
   }
   function wrapText(g, text, x, y, maxW, lh) {
     let line = "";
     for (const ch of text) {
-      if (g.measureText(line + ch).width > maxW) { g.fillText(line, x, y); line = ch; y += lh; } else line += ch;
+      if (g.measureText(line + ch).width > maxW && !"。、！？」）".includes(ch)) { g.fillText(line, x, y); line = ch; y += lh; } else line += ch;
     }
     g.fillText(line, x, y);
   }
