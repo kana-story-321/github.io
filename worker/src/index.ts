@@ -7,12 +7,15 @@
 //   GET  /reviews        … 承認した口コミの一覧（お店のサイトが読む。誰でも読める）
 //   GET  /reviews/photo/{id}/{n} … 承認した口コミの写真
 //   POST /reviews/admin/list, /reviews/admin/set … 承認ページ（REVIEW_ADMIN_KEY が必要）
+//   POST /line/webhook … 公式LINEの自動返信（linebot.ts）
 // LINE_CHANNEL_ID を設定すると、AIの2つは「公式LINEの友だち」だけが使えるようになります
 // （友だちでない人には、ページ側がAIなしの質問・文章で答えます）。
 import Anthropic from "@anthropic-ai/sdk";
 import { DurableObject } from "cloudflare:workers";
+import { ShopBot, handleLineWebhook } from "./linebot";
+export { ShopBot };
 
-interface Env {
+export interface Env {
   ANTHROPIC_API_KEY: string;
   ALLOWED_ORIGIN: string;
   MODEL?: string;
@@ -26,6 +29,14 @@ interface Env {
   REVIEWS: DurableObjectNamespace<ReviewStore>;
   // 口コミの承認ページの合言葉（GitHub の secret REVIEW_ADMIN_KEY から登録）。未設定なら承認ページは使えない
   REVIEW_ADMIN_KEY?: string;
+  // 公式LINEの自動返信（Messaging API）。どちらも GitHub の secret から登録。未設定なら自動返信はしない
+  LINE_CHANNEL_SECRET?: string;
+  LINE_CHANNEL_ACCESS_TOKEN?: string;
+  LINE_API_BASE?: string; // 手元での確認用（ふだんは空）
+  BOT: DurableObjectNamespace<ShopBot>;
+  // ホームページ（Lovable）の営業日カレンダーを読むための、公開用の接続先
+  SITE_SUPABASE_URL?: string;
+  SITE_SUPABASE_KEY?: string;
 }
 
 // 1回の呼び出しで受け付ける本文の大きさの上限（20KB）。回答は数KBに収まるので十分です。
@@ -154,7 +165,7 @@ function describe(ctx: SurveyContext): string {
   return `店名: ${ctx.shopName}\n取り扱い商品: ${ctx.products.join("、")}\n\n<回答>\n${lines}\n</回答>`;
 }
 
-async function ask(env: Env, system: string, userText: string, schema: Record<string, unknown>): Promise<unknown | null> {
+export async function ask(env: Env, system: string, userText: string, schema: Record<string, unknown>): Promise<unknown | null> {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const model = env.MODEL || "claude-haiku-5-5";
   // 安全判定で断られたときに別モデルで自動的にやり直す設定は、対応しているモデルだけで使う（Haiku は非対応）
@@ -348,8 +359,10 @@ async function publicReviews(request: Request, env: Env, path: string): Promise<
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, execCtx: ExecutionContext): Promise<Response> {
     const path = new URL(request.url).pathname;
+    // 公式LINEの Webhook（LINEのサーバーから届く。署名で確かめる）
+    if (path === "/line/webhook" && request.method === "POST") return handleLineWebhook(request, env, execCtx);
     if (request.method === "GET" && (path === "/reviews" || path.startsWith("/reviews/photo/"))) return publicReviews(request, env, path);
 
     // 決められたページ以外（他のサイトや、Originを付けない直接の呼び出し）は断る

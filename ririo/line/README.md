@@ -36,16 +36,54 @@
 
 ## リッチメニュー（LINE Official Account Manager → リッチメニュー）
 
-- 画像：[`richmenu.jpg`](richmenu.jpg)（2500×843、テンプレートは「横に3つ」）
-- アクション（すべて「リンク」）
+- 画像：[`richmenu.jpg`](richmenu.jpg)（2500×1686、テンプレートは「大・6分割（3×2）」）
+  ホームページの雰囲気（クリーム地・ローズピンク・筆記体の英字）に合わせ、キャラは「おみくじ」「図鑑」だけ
+- アクション
 
-| 場所 | リンク先 |
-|---|---|
-| 左：今日のおみくじ | `https://liff.line.me/{LIFF ID}` |
-| 中：キャラ図鑑 | `https://liff.line.me/{LIFF ID}?zukan=1` |
-| 右：お店の情報 | Googleマップのお店のページ、またはお店のサイト |
+| 場所 | タイプ | 中身 |
+|---|---|---|
+| 上・左：今日のおみくじ | リンク | `https://liff.line.me/{LIFF ID}` |
+| 上・中：キャラ図鑑 | リンク | `https://liff.line.me/{LIFF ID}?zukan=1` |
+| 上・右：今月の営業日 | **テキスト** | `今月の営業日`（自動返信が、ホームページのカレンダーと同じ内容を返します） |
+| 下・左：お菓子教室 | リンク | `https://sweet-season-ririo.lovable.app/#classes` |
+| 下・中：ホームページ | リンク | `https://sweet-season-ririo.lovable.app/` |
+| 下・右：アクセス | リンク | `https://sweet-season-ririo.lovable.app/#access` |
 
 - メニューの表示：「表示する」（トークを開いたときに最初から出す）
+
+## 自動返信（AI）と手動対応の切り替え
+
+```
+お客さまがメッセージを送る
+ ├ 営業日・営業時間・場所・駐車場・教室の料金・オンラインショップなど
+ │   → AIが、お店の情報とホームページの営業日カレンダーをもとに返信
+ └ 教室の申し込み・オーダーの相談・駐車場の利用連絡・アレルギー・苦情・取材・「スタッフと話したい」など
+     → AI「担当者から改めてご連絡いたします」
+     → そのお客さまは「手動対応」に切り替わり（72時間）、AIは返信しない
+     → お店の方のLINEに【要対応】の通知
+     → お店の方は LINE公式アカウントのチャット（アプリ）から返信
+```
+
+- 営業日はホームページの管理画面のカレンダーをそのまま読みます。カレンダーを直せば、自動返信も変わります。
+- お店の情報（住所、教室の料金など）は `worker/src/shop.ts` に書いてあります。変わったら書き換えます。
+- お店の方の操作（お店の方のLINEから公式LINEに送る）
+  - `管理者登録 合言葉` … 最初に1回。通知を受け取る人として登録（合言葉は REVIEW_ADMIN_KEY と同じ）
+  - `ヘルプ` … 操作の一覧
+  - `対応待ち` … 手動対応中のお客さまの一覧
+  - `#コード 自動` / `#コード 手動` … AIに戻す／手動にする（コードは通知に書いてあります）
+  - `名前 自動` / `名前 手動` … LINEの表示名の一部でも指定できます
+
+### 設定
+1. LINE Official Account Manager →「設定」→「Messaging API」を有効にする（プロバイダーはLINEログインと同じもの）
+2. LINE Developers → そのMessaging APIチャネル
+   - 「チャネル基本設定」のチャネルシークレット → GitHub の secret `LINE_CHANNEL_SECRET`
+   - 「Messaging API設定」のチャネルアクセストークン（長期）を発行 → GitHub の secret `LINE_CHANNEL_ACCESS_TOKEN`
+   - Webhook URL：`https://gbp-api.ai-mottainai.jp/line/webhook`、「Webhookの利用」をオン
+3. LINE Official Account Manager →「応答設定」
+   - チャット：オン（手動で返信するため）
+   - Webhook：オン
+   - 応答メッセージ（キーワードの自動応答）：オフ（AIと二重にならないように）
+4. GitHub の secret `REVIEW_ADMIN_KEY`（合言葉）も登録し、公式LINEに `管理者登録 合言葉` と送る
 
 ## あいさつメッセージ（友だち追加されたとき）
 

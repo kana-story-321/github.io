@@ -5,7 +5,9 @@
 #   CLOUDFLARE_API_TOKEN   … Cloudflare の APIトークン（下記の権限）
 #   CLOUDFLARE_ACCOUNT_ID  … Cloudflare のアカウントID（ダッシュボードの Workers & Pages 画面の右側に表示）
 #   ANTHROPIC_API_KEY      … Claude APIキー。デプロイのたびに Worker のシークレットとして登録されます
-#   REVIEW_ADMIN_KEY       … （任意）口コミ承認ページ ririo/admin.html の合言葉。未登録なら承認ページは使えません
+#   REVIEW_ADMIN_KEY       … （任意）口コミ承認ページ ririo/admin.html と、公式LINEの「管理者登録」の合言葉
+#   LINE_CHANNEL_SECRET    … （任意）公式LINEの自動返信用。Messaging API のチャネルシークレット
+#   LINE_CHANNEL_ACCESS_TOKEN … （任意）公式LINEの自動返信用。Messaging API のチャネルアクセストークン（長期）
 #
 # APIトークンの作り方:
 #   Cloudflare ダッシュボード → My Profile → API Tokens → Create Token →
@@ -38,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       REVIEW_ADMIN_KEY: ${{ secrets.REVIEW_ADMIN_KEY }}
+      LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+      LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
     defaults:
       run:
         working-directory: worker
@@ -65,10 +69,20 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
-      # 承認ページの合言葉は、登録してあるときだけ設定する
-      - name: Set review admin key
-        if: ${{ env.REVIEW_ADMIN_KEY != '' }}
+      # 任意のシークレットは、GitHub に登録してあるものだけ Worker に設定する（前後の空白・改行は取り除く）
+      - name: Set optional secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: printf '%s' "$REVIEW_ADMIN_KEY" | npx wrangler secret put REVIEW_ADMIN_KEY
+        run: |
+          node -e '
+            const o = {};
+            for (const k of ["REVIEW_ADMIN_KEY", "LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN"]) {
+              const v = (process.env[k] || "").trim();
+              if (v) o[k] = v;
+            }
+            require("fs").writeFileSync(process.env.RUNNER_TEMP + "/secrets.json", JSON.stringify(o));
+            console.log("secrets to set:", Object.keys(o).join(", ") || "(none)");
+          '
+          if [ "$(cat "$RUNNER_TEMP/secrets.json")" != "{}" ]; then npx wrangler secret bulk "$RUNNER_TEMP/secrets.json"; fi
+          rm -f "$RUNNER_TEMP/secrets.json"
