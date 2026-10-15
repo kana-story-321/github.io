@@ -30,7 +30,7 @@
    - 友だち追加オプション：**On (Aggressive)** … ログインの直後に友だち追加の画面が出ます
    - LIFF ID をメモ（`1234567890-AbCdEfGh` のような形）
 3. チャネルを「**公開済み**」にする（開発中のままだと、お客さんがログインできません）
-4. LIFF ID・チャネルID・友だち追加URL（`https://line.me/R/ti/p/@114qvwyz`）を設定ファイルに入れる
+4. LIFF ID・チャネルID・友だち追加URL（`https://lin.ee/Nf8u2Tf`）を設定ファイルに入れる
    - `ririo/config.js`：`liffId` と `lineUrl`
    - `worker/wrangler.toml`：`LINE_CHANNEL_ID`
 
