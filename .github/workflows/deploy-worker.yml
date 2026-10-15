@@ -5,6 +5,7 @@
 #   CLOUDFLARE_API_TOKEN   … Cloudflare の APIトークン（下記の権限）
 #   CLOUDFLARE_ACCOUNT_ID  … Cloudflare のアカウントID（ダッシュボードの Workers & Pages 画面の右側に表示）
 #   ANTHROPIC_API_KEY      … Claude APIキー。デプロイのたびに Worker のシークレットとして登録されます
+#   REVIEW_ADMIN_KEY       … （任意）口コミ承認ページ ririo/admin.html の合言葉。未登録なら承認ページは使えません
 #
 # APIトークンの作り方:
 #   Cloudflare ダッシュボード → My Profile → API Tokens → Create Token →
@@ -35,6 +36,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      REVIEW_ADMIN_KEY: ${{ secrets.REVIEW_ADMIN_KEY }}
     defaults:
       run:
         working-directory: worker
@@ -61,3 +64,11 @@ jobs:
             ANTHROPIC_API_KEY
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      # 承認ページの合言葉は、登録してあるときだけ設定する
+      - name: Set review admin key
+        if: ${{ env.REVIEW_ADMIN_KEY != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: printf '%s' "$REVIEW_ADMIN_KEY" | npx wrangler secret put REVIEW_ADMIN_KEY

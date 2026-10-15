@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>口コミの承認｜お客様の声</title>
+  <style>
+    :root { --bg: #fbf3e6; --paper: #fffdf8; --ink: #4a3426; --soft: #8a6f5c; --line: #efdcc4; --accent: #e8732a; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Hiragino Sans", sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 20px; margin: 8px 0 4px; }
+    p.lead { margin: 0 0 12px; color: var(--soft); font-size: 13px; }
+    .login { display: flex; gap: 8px; }
+    .login input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; }
+    button { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); font-size: 14px; cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+    .tabs { display: flex; gap: 6px; margin: 16px 0 8px; flex-wrap: wrap; }
+    .tabs button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-top: 10px; }
+    .meta { font-size: 12px; color: var(--soft); }
+    .text { margin: 6px 0; white-space: pre-wrap; line-height: 1.7; }
+    .photos { display: flex; gap: 6px; flex-wrap: wrap; }
+    .photos img { width: 120px; height: 120px; object-fit: cover; border-radius: 10px; }
+    .acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }
+    .empty, .err { color: var(--soft); font-size: 14px; margin-top: 16px; }
+    .err { color: #b3261e; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>お客様の声：口コミの承認</h1>
+  <p class="lead">「ホームページに掲載OK」で届いた口コミです。「掲載する」を押したものだけ、ホームページに表示されます。</p>
+  <form class="login" id="login">
+    <input id="key" type="password" placeholder="合言葉（REVIEW_ADMIN_KEY）" autocomplete="current-password">
+    <button class="primary" type="submit">ひらく</button>
+  </form>
+  <p class="err" id="err" hidden></p>
+  <div class="tabs" id="tabs" hidden>
+    <button type="button" data-s="pending" aria-pressed="true">承認待ち</button>
+    <button type="button" data-s="approved" aria-pressed="false">掲載中</button>
+    <button type="button" data-s="hidden" aria-pressed="false">非表示</button>
+  </div>
+  <div id="list"></div>
+</main>
+<script src="config.js"></script>
+<script>
+(() => {
+  const API = (window.SHOP_CONFIG.aiEndpoint || "").replace(/\/$/, "");
+  const $ = (id) => document.getElementById(id);
+  let key = "";
+  try { key = sessionStorage.getItem("kk_adminKey") || ""; } catch { /* ignore */ }
+  let tab = "pending";
+  let all = [];
+
+  async function call(path, body) {
+    const res = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, ...body }) });
+    if (res.status === 401) throw new Error("合言葉がちがいます");
+    if (!res.ok) throw new Error("読み込めませんでした（" + res.status + "）");
+    return res.json();
+  }
+
+  async function load() {
+    $("err").hidden = true;
+    try {
+      all = (await call("/reviews/admin/list", {})).reviews;
+      try { sessionStorage.setItem("kk_adminKey", key); } catch { /* ignore */ }
+      $("login").hidden = true;
+      $("tabs").hidden = false;
+      draw();
+    } catch (e) {
+      $("err").textContent = e.message; $("err").hidden = false;
+    }
+  }
+
+  const ACTS = {
+    pending: [["approved", "掲載する", true], ["hidden", "非表示", false]],
+    approved: [["hidden", "掲載をやめる", false]],
+    hidden: [["approved", "掲載する", false], ["deleted", "削除", false]],
+  };
+
+  function draw() {
+    for (const b of $("tabs").querySelectorAll("button")) {
+      const n = all.filter((r) => r.status === b.dataset.s).length;
+      b.textContent = b.textContent.replace(/（\d+）$/, "") + `（${n}）`;
+      b.setAttribute("aria-pressed", b.dataset.s === tab ? "true" : "false");
+    }
+    const list = $("list");
+    list.innerHTML = "";
+    const rows = all.filter((r) => r.status === tab);
+    if (!rows.length) { list.innerHTML = '<p class="empty">ありません</p>'; return; }
+    for (const r of rows) {
+      const el = document.createElement("div");
+      el.className = "card";
+      el.innerHTML = '<p class="meta"></p><p class="text"></p><div class="photos"></div><div class="acts"></div>';
+      el.querySelector(".meta").textContent = [r.date, r.product].filter(Boolean).join("・");
+      el.querySelector(".text").textContent = r.text;
+      for (const src of r.photos.filter(Boolean)) { const img = document.createElement("img"); img.src = src; img.alt = "お客様の写真"; el.querySelector(".photos").appendChild(img); }
+      for (const [status, label, primary] of ACTS[r.status] || []) {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = label; if (primary) b.className = "primary";
+        b.onclick = async () => {
+          if (status === "deleted" && !confirm("この口コミを削除します。もとに戻せません。よろしいですか？")) return;
+          b.disabled = true;
+          try { await call("/reviews/admin/set", { id: r.id, status }); } catch (e) { alert(e.message); }
+          await load();
+        };
+        el.querySelector(".acts").appendChild(b);
+      }
+      list.appendChild(el);
+    }
+  }
+
+  $("login").addEventListener("submit", (e) => { e.preventDefault(); key = $("key").value.trim(); if (key) load(); });
+  $("tabs").addEventListener("click", (e) => { const s = e.target.dataset && e.target.dataset.s; if (s) { tab = s; draw(); } });
+  if (key) load();
+})();
+</script>
+</body>
+</html>

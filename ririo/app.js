@@ -1104,6 +1104,7 @@
     show("screenFinish");
     renderFortune();
     $("deep").hidden = !claimedToday();
+    $("siteConsentBox").hidden = !C.siteReviews || !C.aiEndpoint;
     renderRewardBox();
     renderFinishPhotos();
 
@@ -1144,6 +1145,7 @@
       try { ok = document.execCommand("copy"); } catch { ok = false; }
     }
     toast(ok ? "コピーしました！Googleマップで貼り付けてね" : "文章を長押ししてコピーしてください");
+    postToSite();
     revealFortune(false);
     const r = claimReward();
     if (r) {
@@ -1153,7 +1155,39 @@
     }
     setTimeout(() => window.open(C.gbpReviewUrl, "_blank", "noopener"), ok ? 700 : 1600);
   }
+  // ---------- お店のホームページ「お客様の声」へ ----------
+  // チェックが入ったまま（初期状態はチェックあり）なら、Googleボタン・「次に進む」のどちらを押したときも1回だけ送る。
+  // 届いた口コミは、お店が承認ページ（admin.html）で「掲載する」を押すまで公開されない。
+  function shrinkDataUrl(src, max, quality) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        resolve(cv.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+  async function postToSite() {
+    if (!C.siteReviews || !C.aiEndpoint || !state || state.sitePosted || !$("siteConsent").checked) return;
+    const text = $("review").value.trim();
+    if (text.length < 10) return;
+    state.sitePosted = true;
+    const photos = (await Promise.all((state.photos || []).map((src) => shrinkDataUrl(src, 800, 0.75)))).filter(Boolean);
+    try {
+      await fetch(C.aiEndpoint.replace(/\/$/, "") + "/reviews/submit", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, product: eatenNames()[0] || "", photos }),
+      });
+    } catch { state.sitePosted = false; }
+  }
+
   function skipGoogle() {
+    postToSite();
     revealFortune(false);
     const r = claimReward();
     if (r) playReward(r); else revealFortune(true);
