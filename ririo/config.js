@@ -11,6 +11,9 @@ window.SHOP_CONFIG = {
   // 例: https://gbp-ai.example.workers.dev
   aiEndpoint: "https://gbp-api.ai-mottainai.jp",
 
+  // 公式LINEの友だち追加URL（例: https://lin.ee/xxxxxxx）。入れると「くわしい運勢」の最後と図鑑にLINEボタンが出ます。
+  lineUrl: "",
+
   // アンケート結果の送り先（Googleスプレッドシート用のApps Script URL など）。空なら送信しません。
   feedbackEndpoint: "",
 

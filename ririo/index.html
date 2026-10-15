@@ -97,8 +97,6 @@
 
     <!-- 4. 完成・Googleへ -->
     <section class="screen" id="screenFinish" hidden aria-labelledby="finishTitle">
-      <div class="deep" id="deep"></div>
-
       <h2 class="title small" id="finishTitle">あなたの口コミができました</h2>
       <p class="lead">自分の言葉を少し足すと、次に買う人にもっと伝わります。</p>
       <label class="sr-only" for="review">口コミの文章</label>
@@ -108,15 +106,22 @@
       <div class="photo-box" id="photoBox" hidden></div>
       <div class="reward" id="rewardBox" hidden></div>
 
-      <button class="primary-btn" id="copyOpen" type="button">コピーして Google マップを開く</button>
-      <button class="ghost-btn wide" id="skipGoogle" type="button">Googleには書かずに進む</button>
+      <button class="primary-btn" id="copyOpen" type="button">口コミをコピーしてGoogleにも投稿しよう！</button>
       <ol class="steps">
         <li><b>1</b>この文章をコピー（上のボタンで自動）</li>
         <li><b>2</b><span id="step2">Googleマップで ☆ をタップして評価</span></li>
         <li><b>3</b>入力欄を長押し →「ペースト」→ 投稿</li>
       </ol>
+      <button class="text-link" id="skipGoogle" type="button">次に進む →</button>
       <p class="note">投稿は任意です。投稿しなくても、感想はお店にちゃんと届いています。ありがとうございました！</p>
-      <button class="ghost-btn" id="backToResult" type="button">今日の占いにもどる</button>
+
+      <!-- くわしい運勢（どちらかのボタンを押すと最後に出る） -->
+      <div class="deep" id="deep" hidden></div>
+
+      <div class="row">
+        <button class="ghost-btn" id="finishZukan" type="button">📖 キャラ図鑑を見る</button>
+        <button class="ghost-btn" id="backToResult" type="button">今日の占いにもどる</button>
+      </div>
     </section>
   </main>
 
@@ -125,6 +130,7 @@
     <h2 id="zukanTitle">お菓子図鑑 <span id="zukanProgress"></span></h2>
     <p class="note">毎日1枚クッキーが割れます。集めたキャラをタップすると、待ち受け画像がもらえます。</p>
     <div class="zukan-grid" id="zukanGrid"></div>
+    <a class="line-btn" id="zukanLine" href="#" target="_blank" rel="noopener" hidden>LINEで友だち追加して、新作・季節限定のお知らせを受け取る</a>
     <button class="ghost-btn" id="closeZukan" type="button">とじる</button>
   </dialog>
 
@@ -134,6 +140,7 @@
     <p class="evolve-text"></p>
     <div class="evolve-btns" hidden>
       <button class="primary-btn" type="button" data-act="wall">📱 待ち受け画像をもらう</button>
+      <button class="ghost-btn" type="button" data-act="zukan">📖 図鑑を見る</button>
       <button class="ghost-btn" type="button" data-act="close">とじる</button>
     </div>
   </div>
