@@ -54,17 +54,25 @@
   const nameOf = (p, stage) => (hasLine(p) ? LINES[p.id].names[(stage || 1) - 1] : p.chara);
   const descOf = (p, stage) => (hasLine(p) ? LINES[p.id].descs[(stage || 1) - 1] : "");
   const svgOf = (p, stage) => (hasLine(p) ? window.EVOLVE_SVG(stage || 1, p.id) : window.CHARA_SVG && window.CHARA_SVG(p.id));
-  // キャラの絵。絵がなければ絵文字
-  const art = (p, stage) => svgOf(p, stage) || p.emoji;
-  function artImage(p, stage) {
-    const svgText = svgOf(p, stage);
-    if (!svgText) return Promise.resolve(null);
+  // キャラの絵：img/chara/{商品ID}-{段階}.webp（Canvaで清書した画像）。読めなければ手描きSVG、それもなければ絵文字
+  const imgSrc = (p, stage) => `img/chara/${p.id}-${hasLine(p) ? stage || 1 : 1}.webp`;
+  const svgFallback = (p, stage) => svgOf(p, stage) || p.emoji;
+  window.__charaFallback = (el) => { const p = productById(el.dataset.id); el.outerHTML = svgFallback(p, +el.dataset.stage || 1); };
+  const art = (p, stage) =>
+    `<img src="${imgSrc(p, stage)}" alt="" draggable="false" data-id="${p.id}" data-stage="${stage || 1}" onerror="__charaFallback(this)">`;
+  function loadImage(src) {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => resolve(img);
       img.onerror = () => resolve(null);
-      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+      img.src = src;
     });
+  }
+  async function artImage(p, stage) {
+    const img = await loadImage(imgSrc(p, stage));
+    if (img) return img;
+    const svgText = svgOf(p, stage);
+    return svgText ? loadImage("data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText)) : null;
   }
   const SPARKS = activeSeasons.length ? activeSeasons.flatMap((s) => s.sparks || []) : ["✨", "⭐", "💫"];
   const hashtag = "#" + C.shopName.replace(/[\s"]/g, "");
@@ -589,6 +597,7 @@
       options: () => ["チョコ系", "フルーツ系", "焼き菓子", "和の素材", "甘さ控えめ派", "甘いものはあまり食べない"], ai: true },
     { id: "tips", type: "multi", title: () => "次に買う人へのひとこと", sub: "知っていると助かる情報を選んでね",
       options: () => ["日持ちする", "持ち歩きしやすい", "温めるとさらにおいしい", "冷やすとさらにおいしい", "早い時間が品ぞろえ◎", "量がちょうどいい", "価格以上の満足感", "ラッピングが丁寧"] },
+    { id: "photo", type: "photo", optional: true, title: () => "買ったお菓子の写真はありますか？", sub: "あれば載せてください（3枚まで・なくてもOK）。お店に届き、Googleの口コミにも付けられます" },
     { id: "free", type: "text", optional: true, title: () => "最後に、ひとことで言うと？", sub: "自由にどうぞ（なくてもOK）", placeholder: "例：外カリ中もちで、また買いに来ます！" },
     { id: "wish", type: "multi", shop: true, optional: true, withText: true, title: () => "今後食べたいもの・お店へのリクエスト",
       sub: "🔒 お店だけに届きます（口コミの文章には入りません）",
@@ -678,6 +687,11 @@
     el.querySelector(".q").textContent = title;
     if (q.sub) el.querySelector(".sub").textContent = q.sub;
 
+    if (q.type === "photo") {
+      el.appendChild(photoPicker(q));
+      return el;
+    }
+
     if (q.type === "text") {
       const ta = document.createElement("textarea");
       ta.rows = 3; ta.placeholder = q.placeholder || "";
@@ -721,6 +735,61 @@
       el.appendChild(actions(null, true, () => submit(q, null)));
     }
     return el;
+  }
+
+  // ---------- 写真 ----------
+  // 選んだ写真はスマホの中で縮小してから使う（通信量を抑えるため）
+  const MAX_PHOTOS = 3;
+  function shrinkPhoto(file) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 1080 / Math.max(img.width, img.height));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(url);
+        resolve(cv.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  }
+  function photoPicker(q) {
+    const wrap = document.createElement("div");
+    state.photos = state.photos || [];
+    wrap.innerHTML = `<div class="photos"></div>
+      <label class="photo-add"><input type="file" accept="image/*" multiple hidden>📷 写真を選ぶ・撮る</label>`;
+    const list = wrap.querySelector(".photos");
+    const input = wrap.querySelector("input");
+    const draw = () => {
+      list.innerHTML = state.photos.map((src, i) => `<div class="ph"><img src="${src}" alt="買ったお菓子の写真${i + 1}"><button type="button" data-i="${i}" aria-label="この写真を外す">×</button></div>`).join("");
+      for (const b of list.querySelectorAll("button")) b.onclick = () => { state.photos.splice(+b.dataset.i, 1); draw(); };
+      wrap.querySelector(".photo-add").hidden = state.photos.length >= MAX_PHOTOS;
+      next.textContent = state.photos.length ? "次へ" : "写真なしで次へ";
+    };
+    input.addEventListener("change", async () => {
+      for (const f of [...input.files].slice(0, MAX_PHOTOS - state.photos.length)) {
+        const src = await shrinkPhoto(f);
+        if (src) state.photos.push(src);
+      }
+      input.value = "";
+      draw();
+    });
+    const row = actions(() => submit(q, state.photos.length ? `写真${state.photos.length}枚` : null), false, null, false);
+    const next = row.querySelector(".next-btn");
+    wrap.appendChild(row);
+    draw();
+    return wrap;
+  }
+  function renderFinishPhotos() {
+    const box = $("photoBox");
+    const photos = (state && state.photos) || [];
+    box.hidden = !photos.length;
+    if (!photos.length) { $("step2").textContent = C.gbpDirect ? "Googleマップで ☆ をタップして評価" : "Googleマップで「クチコミを書く」→ ☆ をタップ"; return; }
+    box.innerHTML = `<p class="photo-note">📷 この写真もGoogleの口コミに付けられます</p><div class="photos">${photos.map((src, i) => `<div class="ph"><img src="${src}" alt="買ったお菓子の写真${i + 1}"></div>`).join("")}</div>`;
+    $("step2").textContent = (C.gbpDirect ? "☆ をタップ" : "「クチコミを書く」→ ☆ をタップ") + " →「写真を追加」でこの写真を選ぶ";
   }
 
   function actions(onNext, optional, onSkip, disabled) {
@@ -906,6 +975,7 @@
     ps[0].textContent = `${focusName()}を選んだあなたは「${trait}」。${line}`;
     ps[1].textContent = `次に会うと運気が上がるキャラ：${nameOf(next)}（${next.name}）`;
     renderRewardBox();
+    renderFinishPhotos();
 
     const review = $("review");
     review.value = composeLocal();
@@ -930,6 +1000,7 @@
       shop: C.shopName, at: new Date().toISOString(), fortune: state.fortune,
       answers: state.order.map((id) => ({ id, question: (() => { const q = questionFor(id); return typeof q.title === "function" ? q.title() : q.title; })(), answer: state.answers[id] })),
       review: reviewText,
+      photos: state.photos || [], // JPEGのdataURL（最大3枚）
     };
     // Apps Script はCORSを返さないので no-cors + text/plain で送る
     fetch(C.feedbackEndpoint, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload) }).catch(() => {});

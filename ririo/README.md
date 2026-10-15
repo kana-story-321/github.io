@@ -27,6 +27,17 @@ QRコードを読む → クッキーを割って占い → 答え合わせの�
 - クッキーを割ったとき、5%の確率で進化しきった姿がいきなり出ます（`RARE_EVOLVED_RATE`）。
 - 図鑑は定番キャラを段階ごとに3マスずつ表示します。記録はそのスマホのブラウザに保存されます。日付を変えて確認する例: `?date=2026-11-01`
 
+## キャラの画像
+
+- `img/chara/{商品ID}-{段階}.webp` が表示に使う画像です（Canva の画像生成AIで清書し、背景を透明にしたもの）。季節限定キャラは段階1だけです。
+- 画像が読めないときは、`evolve.js` / `chara.js` の手描きSVGで表示します。
+
+## 買ったお菓子の写真
+
+- 答え合わせの最後のほうに「買ったお菓子の写真はありますか？」があり、3枚まで載せられます（任意）。写真はスマホの中で縮小してから使います。
+- 完成画面に写真を表示し、「Googleマップで『写真を追加』からこの写真を選ぶ」と案内します（Googleへの添付は、お客さん自身の操作です）。
+- `feedbackEndpoint` を設定していれば、写真もお店に届きます。下のApps Scriptの例では、Googleドライブに保存します。
+
 ## 待ち受け画像
 
 - 占いの結果画面の「📱 待ち受け画像をもらう」から、スマホの縦長サイズ（1170×2532）のキャラ画像を保存できます。対応しているスマホでは共有メニューが開くので、「画像を保存」を選びます。
@@ -52,10 +63,17 @@ QRコードを読む → クッキーを割って占い → 答え合わせの�
 ```js
 function doPost(e) {
   const d = JSON.parse(e.postData.contents);
+  // 写真（最大3枚）はGoogleドライブの「口コミ写真」フォルダに保存して、リンクを表に残す
+  const folders = DriveApp.getFoldersByName("口コミ写真");
+  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder("口コミ写真");
+  const links = (d.photos || []).map((src, i) => {
+    const blob = Utilities.newBlob(Utilities.base64Decode(src.split(",")[1]), "image/jpeg", `${d.at}-${i + 1}.jpg`);
+    return folder.createFile(blob).getUrl();
+  });
   SpreadsheetApp.getActiveSheet().appendRow([
     d.at, d.fortune.productId,
     d.answers.map(a => a.question + "：" + JSON.stringify(a.answer)).join("\n"),
-    d.review,
+    d.review, links.join("\n"),
   ]);
   return ContentService.createTextOutput("ok");
 }
