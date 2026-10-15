@@ -11,6 +11,11 @@ window.SHOP_CONFIG = {
   // 例: https://gbp-ai.example.workers.dev
   aiEndpoint: "https://gbp-api.ai-mottainai.jp",
 
+  // LINEのLIFF ID（LINE Developers →「LINEログイン」チャネル → LIFF タブ）。
+  // 入れると、QRを読んだ人はLINEの中でこのページを開き、図鑑がLINEアカウントに保存されます。
+  // AIの質問・文章は公式LINEの友だちだけになります（worker/wrangler.toml の LINE_CHANNEL_ID も入れること）。
+  liffId: "",
+
   // 公式LINEの友だち追加URL（例: https://lin.ee/xxxxxxx）。入れると「くわしい運勢」の最後と図鑑にLINEボタンが出ます。
   lineUrl: "",
 

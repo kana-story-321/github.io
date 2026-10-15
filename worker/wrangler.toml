@@ -15,6 +15,18 @@ ALLOWED_ORIGIN = "https://gbp.ai-mottainai.jp"
 MODEL = "claude-sonnet-5-5"
 # "1" にすると http://localhost:8123 からの呼び出しも許可します（手元での確認用。本番では "0" のまま）。
 ALLOW_LOCALHOST = "0"
+# LINEログインのチャネルID（LINE Developers の「チャネル基本設定」）。
+# 入れると図鑑をLINEアカウントに保存でき、AIの質問・文章は公式LINEの友だちだけが使えるようになります。空ならLINE連携なし。
+LINE_CHANNEL_ID = ""
+
+# LINEの人ごとの図鑑・相棒の保存先（Cloudflare Durable Objects、無料枠で使えるSQLite版）
+[[durable_objects.bindings]]
+name = "USER_STATE"
+class_name = "UserState"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["UserState"]
 
 # 同じIPからの呼び出しを、60秒あたり20回までに制限します。
 # namespace_id はアカウント内で一意の数字なら何でも構いません。

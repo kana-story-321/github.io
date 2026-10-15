@@ -316,3 +316,6 @@ body.theme-christmas .season-banner { background: linear-gradient(90deg, #2f6b3a
 .photo-note { margin: 0; font-size: 13px; font-weight: 700; }
 #copyOpen { font-size: 15px; padding: 16px 8px; white-space: nowrap; }
 .card-actions[hidden], .next-btn[hidden] { display: none; }
+.friend-tip { margin: 8px 0 0; padding: 10px 12px; border-radius: 14px; background: #e9f9ef; border: 1px solid #b7e8c8; font-size: 13px; text-align: left; }
+.friend-tip a { display: inline-block; margin-top: 6px; padding: 6px 12px; border-radius: 999px; background: #06c755; color: #fff; font-weight: 700; text-decoration: none; }
+.friend-tip[hidden] { display: none; }

@@ -2,7 +2,11 @@
 // ブラウザにAPIキーを置かないために、ページとClaude APIの間に挟みます。
 //   POST /followup  … これまでの答えから「もう一問だけ」の深掘り質問を作る
 //   POST /compose   … 答えから、次に買う人の役に立つ口コミ文章を作る
+//   POST /state/load, /state/save … LINEでログインした人の図鑑・相棒を保存する
+// LINE_CHANNEL_ID を設定すると、AIの2つは「公式LINEの友だち」だけが使えるようになります
+// （友だちでない人には、ページ側がAIなしの質問・文章で答えます）。
 import Anthropic from "@anthropic-ai/sdk";
+import { DurableObject } from "cloudflare:workers";
 
 interface Env {
   ANTHROPIC_API_KEY: string;
@@ -12,6 +16,9 @@ interface Env {
   ALLOW_LOCALHOST?: string;
   // wrangler.toml の [[ratelimits]]。手元の開発などで無いときは制限をかけない
   RATE_LIMITER?: RateLimit;
+  // LINEログインのチャネルID。空ならLINE連携なし（AIは誰でも使える）
+  LINE_CHANNEL_ID?: string;
+  USER_STATE: DurableObjectNamespace<UserState>;
 }
 
 // 1回の呼び出しで受け付ける本文の大きさの上限（20KB）。回答は数KBに収まるので十分です。
@@ -166,6 +173,98 @@ async function ask(env: Env, system: string, userText: string, schema: Record<st
   }
 }
 
+// ---------- LINE ----------
+interface LineUser { userId: string; friend: boolean }
+// 同じトークンを何度も確かめないよう、少しの間だけ覚えておく
+const lineCache = new Map<string, { user: LineUser | null; until: number }>();
+
+// ページから届いたLIFFのアクセストークンを、LINEのサーバーで確かめる
+async function lineUser(env: Env, token: unknown): Promise<LineUser | null> {
+  if (!env.LINE_CHANNEL_ID || typeof token !== "string" || !token || token.length > 1000) return null;
+  const hit = lineCache.get(token);
+  if (hit && hit.until > Date.now()) return hit.user;
+  let user: LineUser | null = null;
+  try {
+    const v = await fetch(`https://api.line.me/oauth2/v2.1/verify?access_token=${encodeURIComponent(token)}`);
+    const vj = (await v.json()) as { client_id?: string; expires_in?: number };
+    // 他のアプリ向けに発行されたトークンは受け付けない
+    if (v.ok && vj.client_id === env.LINE_CHANNEL_ID && (vj.expires_in ?? 0) > 0) {
+      const auth = { headers: { Authorization: `Bearer ${token}` } };
+      const [pr, fr] = await Promise.all([fetch("https://api.line.me/v2/profile", auth), fetch("https://api.line.me/friendship/v1/status", auth)]);
+      const profile = (await pr.json()) as { userId?: string };
+      const friendship = (await fr.json()) as { friendFlag?: boolean };
+      if (pr.ok && profile.userId) user = { userId: profile.userId, friend: fr.ok && friendship.friendFlag === true };
+    }
+  } catch {
+    user = null;
+  }
+  if (lineCache.size > 500) lineCache.clear();
+  lineCache.set(token, { user, until: Date.now() + (user ? 5 * 60_000 : 30_000) });
+  return user;
+}
+
+// ---------- 図鑑の保存（LINEのユーザーごとに1つの Durable Object） ----------
+interface SavedState {
+  stages: Record<string, number[]>;
+  zukan: Record<string, number>;
+  graduated: string[];
+  partner: { id: string; xp: number } | null;
+  claimed: string | null;
+  today: Record<string, unknown> | null;
+}
+
+const ID_RE = /^[a-z0-9-]{1,40}$/;
+const DAY_RE = /^\d{4}-\d{1,2}-\d{1,2}$/;
+
+// ページから届いた中身を、形と大きさを確かめてから使う
+function cleanState(raw: unknown): SavedState {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const obj = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+  const stages: Record<string, number[]> = {};
+  for (const [k, v] of Object.entries(obj(r.stages)).slice(0, 60)) {
+    if (!ID_RE.test(k) || !Array.isArray(v)) continue;
+    const list = [...new Set(v.filter((n): n is number => n === 1 || n === 2 || n === 3))];
+    if (list.length) stages[k] = list;
+  }
+  const zukan: Record<string, number> = {};
+  for (const [k, v] of Object.entries(obj(r.zukan)).slice(0, 60)) {
+    if (ID_RE.test(k) && typeof v === "number" && Number.isFinite(v)) zukan[k] = Math.max(0, Math.min(100000, Math.floor(v)));
+  }
+  const graduated = Array.isArray(r.graduated) ? r.graduated.filter((x): x is string => typeof x === "string" && ID_RE.test(x)).slice(0, 60) : [];
+  const p = obj(r.partner);
+  const partner = typeof p.id === "string" && ID_RE.test(p.id) && typeof p.xp === "number" && Number.isFinite(p.xp)
+    ? { id: p.id, xp: Math.max(0, Math.min(1000, Math.floor(p.xp))) } : null;
+  const claimed = typeof r.claimed === "string" && DAY_RE.test(r.claimed) ? r.claimed : null;
+  const today = r.today && typeof r.today === "object" && JSON.stringify(r.today).length < 4000 ? (r.today as Record<string, unknown>) : null;
+  return { stages, zukan, graduated, partner, claimed, today };
+}
+
+const dayNum = (d: string | null) => (d ? d.split("-").reduce((n, x) => n * 100 + Number(x), 0) : 0);
+
+// 2台のスマホなどで別々にためた分も消えないよう、多いほうに合わせて足し合わせる
+function mergeState(a: SavedState, b: SavedState): SavedState {
+  const stages: Record<string, number[]> = { ...a.stages };
+  for (const [k, v] of Object.entries(b.stages)) stages[k] = [...new Set([...(stages[k] || []), ...v])].sort();
+  const zukan: Record<string, number> = { ...a.zukan };
+  for (const [k, v] of Object.entries(b.zukan)) zukan[k] = Math.max(zukan[k] || 0, v);
+  const partner = !a.partner ? b.partner : !b.partner ? a.partner : b.partner.xp > a.partner.xp ? b.partner : a.partner;
+  const claimed = dayNum(b.claimed) > dayNum(a.claimed) ? b.claimed : a.claimed;
+  const todayDay = (t: SavedState["today"]) => (t && typeof t.date === "string" ? dayNum(t.date) : 0);
+  const today = todayDay(b.today) > todayDay(a.today) ? b.today : a.today || b.today;
+  return { stages, zukan, graduated: [...new Set([...a.graduated, ...b.graduated])], partner, claimed, today };
+}
+
+export class UserState extends DurableObject<Env> {
+  async load(): Promise<SavedState> {
+    return cleanState(await this.ctx.storage.get("state"));
+  }
+  async save(incoming: SavedState): Promise<SavedState> {
+    const merged = mergeState(cleanState(await this.ctx.storage.get("state")), incoming);
+    await this.ctx.storage.put("state", merged);
+    return merged;
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     // 決められたページ以外（他のサイトや、Originを付けない直接の呼び出し）は断る
@@ -184,9 +283,27 @@ export default {
 
     const body = await readBody(request);
     if (body === null) return json({ error: "payload too large" }, 413, headers);
-    const ctx = parseContext(parseJson(body));
-    if (!ctx) return json({ error: "bad request" }, 400, headers);
+    const raw = parseJson(body) as Record<string, unknown> | null;
+    if (!raw || typeof raw !== "object") return json({ error: "bad request" }, 400, headers);
     const path = new URL(request.url).pathname;
+
+    // 図鑑の読み込み・保存（LINEでログインしている人だけ）
+    if (path === "/state/load" || path === "/state/save") {
+      const user = await lineUser(env, raw.lineToken);
+      if (!user) return json({ error: "login required" }, 401, headers);
+      const stub = env.USER_STATE.get(env.USER_STATE.idFromName(user.userId));
+      const state = path === "/state/load" ? await stub.load() : await stub.save(cleanState(raw.state));
+      return json({ state, friend: user.friend }, 200, headers);
+    }
+
+    // AIは公式LINEの友だちだけ（LINE連携を有効にしているとき）
+    if (env.LINE_CHANNEL_ID) {
+      const user = await lineUser(env, raw.lineToken);
+      if (!user || !user.friend) return json({ error: "line friend required" }, 403, headers);
+    }
+
+    const ctx = parseContext(raw);
+    if (!ctx) return json({ error: "bad request" }, 400, headers);
 
     try {
       if (path === "/followup") {

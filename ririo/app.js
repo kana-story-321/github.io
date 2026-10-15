@@ -12,8 +12,12 @@
     },
     set(key, value) {
       try { localStorage.setItem("kk_" + key, JSON.stringify(value)); } catch { /* ignore */ }
+      if (SYNC_KEYS.includes(key)) scheduleCloudSave();
     },
   };
+  // LINEでログインしている人は、図鑑・相棒をLINEアカウントにも保存する（機種変更しても続く）
+  const SYNC_KEYS = ["stages", "zukan", "graduated", "partner", "claimed", "today"];
+  const line = { on: false, token: null, friend: false };
   if (params.has("reset")) store.set("today", null);
 
   // ?date=2026-10-14 で日付を変えて季節の表示を確認できます
@@ -859,7 +863,7 @@
       toast("🔓 くわしい運勢がひらきました！最後に読めます");
     }
 
-    if (q.ai && C.aiEndpoint && state.aiCount < MAX_AI_FOLLOWUPS) {
+    if (q.ai && aiOn() && state.aiCount < MAX_AI_FOLLOWUPS) {
       renderCards();
       const thinking = document.createElement("p");
       thinking.className = "thinking"; thinking.textContent = "✦ あなたの答えから、次の質問を考えています…";
@@ -893,12 +897,16 @@
     };
   }
 
+  // AIを使えるか（LINE連携中は、公式LINEの友だちだけ）
+  const aiOn = () => !!C.aiEndpoint && (!C.liffId || line.friend);
+
   async function callAI(path, body, timeoutMs) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(C.aiEndpoint.replace(/\/$/, "") + path, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctrl.signal,
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(line.token ? { ...body, lineToken: line.token } : body), signal: ctrl.signal,
       });
       if (!res.ok) return null;
       return await res.json();
@@ -1074,12 +1082,12 @@
     advice.textContent = SWEET_ADVICE[ans("sweet")] || "";
     advice.hidden = !advice.textContent;
     box.querySelector(".ft-next p").textContent = `次に会うと運気が上がるキャラ：${nameOf(next)}（${next.name}）`;
-    setupLine(box.querySelector(".line-btn"));
+    setupLineButton(box.querySelector(".line-btn"));
   }
 
-  function setupLine(a) {
+  function setupLineButton(a) {
     if (!a) return;
-    a.hidden = !C.lineUrl;
+    a.hidden = !C.lineUrl || line.friend;
     if (C.lineUrl) a.href = C.lineUrl;
   }
 
@@ -1102,7 +1110,7 @@
     const review = $("review");
     review.value = composeLocal();
     updateCount();
-    if (C.aiEndpoint) {
+    if (aiOn()) {
       review.disabled = true;
       const prev = review.value;
       review.value = "✦ AIが読みやすい文章に整えています…";
@@ -1186,7 +1194,7 @@
     });
     $("evolve").querySelector("[data-act=zukan]").addEventListener("click", () => { $("evolve").hidden = true; openZukan(); });
     $("finishZukan").addEventListener("click", openZukan);
-    setupLine($("zukanLine"));
+    setupLineButton($("zukanLine"));
 
     // 今日すでに割っていたら結果から
     const today = store.get("today", null);
@@ -1195,5 +1203,103 @@
     }
   }
 
-  boot();
+  // ---------- LINE（LIFF） ----------
+  // config.js の liffId を入れると、QRを読んだ人はLINEの中でこのページを開く（公式LINEの友だち追加もそこで出る）。
+  // ?web=1 を付けると、LINEを使わずブラウザで開ける（お店の確認用）。
+  const LIFF_SDK = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+  const inLineApp = /\bLine\//i.test(navigator.userAgent);
+
+  function loadScript(src) {
+    return new Promise((ok, ng) => { const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = ng; document.head.appendChild(el); });
+  }
+
+  let saveTimer = null;
+  function scheduleCloudSave() {
+    if (!line.on) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(cloudSave, 600);
+  }
+  async function cloudCall(path, extra) {
+    try {
+      const res = await fetch(C.aiEndpoint.replace(/\/$/, "") + path, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lineToken: line.token, ...extra }),
+      });
+      return res.ok ? await res.json() : null;
+    } catch { return null; }
+  }
+  async function cloudSave() {
+    const state = {};
+    for (const k of SYNC_KEYS) state[k] = store.get(k, null);
+    const data = await cloudCall("/state/save", { state });
+    if (data && data.state) applyCloud(data.state);
+  }
+  // サーバーに保存してあった分を、このスマホの分と合わせる（多いほうに合わせる）
+  function applyCloud(remote) {
+    const raw = (k, v) => { try { localStorage.setItem("kk_" + k, JSON.stringify(v)); } catch { /* ignore */ } }; // 保存し直しを起こさない
+    const stages = store.get("stages", {});
+    for (const [id, list] of Object.entries(remote.stages || {})) stages[id] = [...new Set([...(stages[id] || []), ...list])];
+    raw("stages", stages);
+    const zukan = store.get("zukan", {});
+    for (const [id, n] of Object.entries(remote.zukan || {})) zukan[id] = Math.max(zukan[id] || 0, n);
+    raw("zukan", zukan);
+    raw("graduated", [...new Set([...store.get("graduated", []), ...(remote.graduated || [])])]);
+    const mine = store.get("partner", null);
+    if (remote.partner && (!mine || remote.partner.xp > mine.xp)) raw("partner", remote.partner);
+    if (remote.claimed === todayKey) raw("claimed", todayKey);
+    const today = store.get("today", null);
+    if (!params.has("reset") && remote.today && remote.today.date === todayKey && (!today || today.date !== todayKey)) raw("today", remote.today);
+    updateZukanCount();
+  }
+
+  async function setupLiff() {
+    // LINEの外（スマホのカメラなど）で開いたら、LINEで開き直す。戻ってきたときにくり返さないよう1回だけ
+    let redirected = false;
+    try { redirected = sessionStorage.getItem("kk_liffJump") === "1"; } catch { /* ignore */ }
+    if (!inLineApp && !redirected && !params.has("liff.state")) {
+      try { sessionStorage.setItem("kk_liffJump", "1"); } catch { /* ignore */ }
+      location.replace(`https://liff.line.me/${C.liffId}${location.search}`);
+      return "redirect";
+    }
+    await loadScript(LIFF_SDK);
+    await window.liff.init({ liffId: C.liffId });
+    if (!window.liff.isLoggedIn()) { window.liff.login({ redirectUri: location.href }); return "redirect"; }
+    line.token = window.liff.getAccessToken();
+    line.on = !!line.token;
+    try { line.friend = !!(await window.liff.getFriendship()).friendFlag; } catch { line.friend = false; }
+    const data = await cloudCall("/state/load", {});
+    if (data && data.state) applyCloud(data.state);
+    if (data && "friend" in data) line.friend = !!data.friend;
+    renderLineStatus();
+    if (line.on) cloudSave(); // このスマホにだけあった分もアカウントへ
+    // 友だち追加して戻ってきたら、AIを使えるようにする
+    document.addEventListener("visibilitychange", async () => {
+      if (document.visibilityState !== "visible" || line.friend) return;
+      try { line.friend = !!(await window.liff.getFriendship()).friendFlag; } catch { /* ignore */ }
+      renderLineStatus();
+    });
+    return "ok";
+  }
+
+  function renderLineStatus() {
+    const tip = $("friendTip");
+    if (tip) {
+      tip.hidden = !line.on || line.friend || !C.lineUrl;
+      tip.querySelector("a").href = C.lineUrl || "#";
+    }
+    const note = $("zukanLineNote");
+    if (note) note.hidden = !line.on;
+    // 友だちの人には「友だち追加」のボタンは出さない
+    document.querySelectorAll(".line-btn").forEach((a) => { if (line.friend) a.hidden = true; });
+  }
+
+  async function start() {
+    if (C.liffId && !params.has("web")) {
+      try { if ((await setupLiff()) === "redirect") return; } catch { /* LINEが使えなくても、そのまま遊べる */ }
+    }
+    boot();
+    renderLineStatus();
+    if (params.has("zukan")) openZukan(); // リッチメニューの「図鑑」から
+  }
+
+  start();
 })();

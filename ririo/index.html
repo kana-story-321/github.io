@@ -86,6 +86,7 @@
     <!-- 3. 答え合わせ（質問が伸びていく） -->
     <section class="screen" id="screenSurvey" hidden aria-labelledby="surveyTitle">
       <h2 class="title small" id="surveyTitle">占いの答え合わせ</h2>
+      <p class="friend-tip" id="friendTip" hidden>✦ 公式LINEの友だちになると、AIがあなたの答えに合わせて質問を考え、口コミの文章も整えます。<a target="_blank" rel="noopener">友だち追加する</a></p>
       <div class="progress" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
       <div class="cards" id="cards"></div>
 
@@ -129,6 +130,7 @@
   <dialog id="zukan" aria-labelledby="zukanTitle">
     <h2 id="zukanTitle">お菓子図鑑 <span id="zukanProgress"></span></h2>
     <p class="note">毎日1枚クッキーが割れます。集めたキャラをタップすると、待ち受け画像がもらえます。</p>
+    <p class="note" id="zukanLineNote" hidden>LINEでログイン中：図鑑はあなたのLINEアカウントに保存されます（機種変更しても続きます）。LINEの情報は図鑑の保存とAI機能の確認だけに使います。</p>
     <div class="zukan-grid" id="zukanGrid"></div>
     <a class="line-btn" id="zukanLine" href="#" target="_blank" rel="noopener" hidden>LINEで友だち追加して、新作・季節限定のお知らせを受け取る</a>
     <button class="ghost-btn" id="closeZukan" type="button">とじる</button>
