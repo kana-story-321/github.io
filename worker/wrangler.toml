@@ -12,7 +12,7 @@ routes = [{ pattern = "gbp-api.ai-mottainai.jp", custom_domain = true }]
 # 口コミページを置くURL（GitHub Pages など）。ここ以外からの呼び出しは断ります。
 ALLOWED_ORIGIN = "https://gbp.ai-mottainai.jp"
 # 費用重視で Claude Haiku 5.5（入力 $0.10 / 出力 $0.50 per 100万トークン）。品質を上げたいときは claude-sonnet-5-5 など
-MODEL = "claude-haiku-5-5"
+MODEL = "claude-sonnet-5-5"
 # "1" にすると http://localhost:8123 からの呼び出しも許可します（手元での確認用。本番では "0" のまま）。
 ALLOW_LOCALHOST = "0"
 
