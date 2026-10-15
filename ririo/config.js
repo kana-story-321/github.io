@@ -3,16 +3,13 @@
 window.SHOP_CONFIG = {
   shopName: "Sweet Season ririo",
 
-  // Googleの口コミ投稿ページ。
-  // いまは Google マップでお店を開くリンクです（開いたあと「クチコミを書く」をタップ）。
-  // Googleビジネスプロフィールの「クチコミを依頼」で出るURL（https://g.page/r/XXXX/review）に置き換えると、
-  // 星をつける画面がいきなり開くので、さらに投稿しやすくなります。
-  gbpReviewUrl: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Sweet Season ririo 宮城県多賀城市丸山1-14-7"),
-  gbpDirect: false, // 上を g.page/r/.../review に置き換えたら true に
+  // Googleの口コミ投稿ページ（Googleビジネスプロフィールの「クチコミを依頼」のURL）。開くと星をつける画面が出ます。
+  gbpReviewUrl: "https://g.page/r/CRH_WkLahZgIEBM/review",
+  gbpDirect: true, // g.page/r/.../review のURLなら true（星をつける画面が直接開く）
 
   // AI中継サーバー（worker/ をデプロイしたURL）。空のままなら、AIなしの質問・文章作成で動きます。
   // 例: https://gbp-ai.example.workers.dev
-  aiEndpoint: "",
+  aiEndpoint: "https://gbp-api.ai-mottainai.jp",
 
   // アンケート結果の送り先（Googleスプレッドシート用のApps Script URL など）。空なら送信しません。
   feedbackEndpoint: "",
