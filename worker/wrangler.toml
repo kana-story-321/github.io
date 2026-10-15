@@ -19,6 +19,10 @@ ALLOW_LOCALHOST = "0"
 # 入れると図鑑をLINEアカウントに保存でき、AIの質問・文章は公式LINEの友だちだけが使えるようになります。空ならLINE連携なし。
 LINE_CHANNEL_ID = ""
 
+# ホームページ（Lovable）の営業日カレンダー・商品のデータベース。公開用の読み取りキーなので、ここに書いて大丈夫です
+SITE_SUPABASE_URL = "https://thesxrduzpwrpwtytrun.supabase.co"
+SITE_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoZXN4cmR1enB3cnB3dHl0cnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MjY0OTQsImV4cCI6MjA5MTAwMjQ5NH0.-_rJA_IulbFsXufIBdicSCmiIRcIBR23AvAMPuC36c8"
+
 # LINEの人ごとの図鑑・相棒の保存先（Cloudflare Durable Objects、無料枠で使えるSQLite版）
 [[durable_objects.bindings]]
 name = "USER_STATE"
@@ -29,6 +33,11 @@ class_name = "UserState"
 name = "REVIEWS"
 class_name = "ReviewStore"
 
+# 公式LINEの自動返信（お店の人の登録、お客さまごとの会話と手動対応の切り替え）
+[[durable_objects.bindings]]
+name = "BOT"
+class_name = "ShopBot"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["UserState"]
@@ -36,6 +45,10 @@ new_sqlite_classes = ["UserState"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["ReviewStore"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["ShopBot"]
 
 # 同じIPからの呼び出しを、60秒あたり20回までに制限します。
 # namespace_id はアカウント内で一意の数字なら何でも構いません。
