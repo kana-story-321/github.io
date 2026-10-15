@@ -17,7 +17,7 @@ MODEL = "claude-sonnet-5-5"
 ALLOW_LOCALHOST = "0"
 # LINEログインのチャネルID（LINE Developers の「チャネル基本設定」）。
 # 入れると図鑑をLINEアカウントに保存でき、AIの質問・文章は公式LINEの友だちだけが使えるようになります。空ならLINE連携なし。
-LINE_CHANNEL_ID = ""
+LINE_CHANNEL_ID = "2012038645"
 
 # ホームページ（Lovable）の営業日カレンダー・商品のデータベース。公開用の読み取りキーなので、ここに書いて大丈夫です
 SITE_SUPABASE_URL = "https://thesxrduzpwrpwtytrun.supabase.co"
