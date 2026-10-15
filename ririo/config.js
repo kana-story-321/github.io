@@ -19,6 +19,10 @@ window.SHOP_CONFIG = {
   // 公式LINEの友だち追加URL（例: https://lin.ee/xxxxxxx）。入れると「くわしい運勢」の最後と図鑑にLINEボタンが出ます。
   lineUrl: "",
 
+  // 完成画面に「お店のホームページ『お客様の声』に掲載させてください」のチェック（最初からチェックあり）を出す。
+  // 届いた口コミは admin.html で「掲載する」を押したものだけ、ホームページに表示されます。
+  siteReviews: true,
+
   // アンケート結果の送り先（Googleスプレッドシート用のApps Script URL など）。空なら送信しません。
   feedbackEndpoint: "",
 

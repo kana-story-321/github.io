@@ -24,9 +24,18 @@ LINE_CHANNEL_ID = ""
 name = "USER_STATE"
 class_name = "UserState"
 
+# お店のサイトに載せる口コミの保存先
+[[durable_objects.bindings]]
+name = "REVIEWS"
+class_name = "ReviewStore"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["UserState"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ReviewStore"]
 
 # 同じIPからの呼び出しを、60秒あたり20回までに制限します。
 # namespace_id はアカウント内で一意の数字なら何でも構いません。

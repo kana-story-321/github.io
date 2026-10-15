@@ -3,6 +3,10 @@
 //   POST /followup  … これまでの答えから「もう一問だけ」の深掘り質問を作る
 //   POST /compose   … 答えから、次に買う人の役に立つ口コミ文章を作る
 //   POST /state/load, /state/save … LINEでログインした人の図鑑・相棒を保存する
+//   POST /reviews/submit … 「お店のサイトに載せてOK」の口コミを受け取る（お店が承認するまで非公開）
+//   GET  /reviews        … 承認した口コミの一覧（お店のサイトが読む。誰でも読める）
+//   GET  /reviews/photo/{id}/{n} … 承認した口コミの写真
+//   POST /reviews/admin/list, /reviews/admin/set … 承認ページ（REVIEW_ADMIN_KEY が必要）
 // LINE_CHANNEL_ID を設定すると、AIの2つは「公式LINEの友だち」だけが使えるようになります
 // （友だちでない人には、ページ側がAIなしの質問・文章で答えます）。
 import Anthropic from "@anthropic-ai/sdk";
@@ -19,6 +23,9 @@ interface Env {
   // LINEログインのチャネルID。空ならLINE連携なし（AIは誰でも使える）
   LINE_CHANNEL_ID?: string;
   USER_STATE: DurableObjectNamespace<UserState>;
+  REVIEWS: DurableObjectNamespace<ReviewStore>;
+  // 口コミの承認ページの合言葉（GitHub の secret REVIEW_ADMIN_KEY から登録）。未設定なら承認ページは使えない
+  REVIEW_ADMIN_KEY?: string;
 }
 
 // 1回の呼び出しで受け付ける本文の大きさの上限（20KB）。回答は数KBに収まるので十分です。
@@ -95,9 +102,9 @@ function json(body: unknown, status: number, headers: Record<string, string>): R
 }
 
 // 本文を上限つきで読む。上限を超えたら途中で読むのをやめて null を返す
-async function readBody(request: Request): Promise<string | null> {
+async function readBody(request: Request, max = MAX_BODY_BYTES): Promise<string | null> {
   const declared = Number(request.headers.get("Content-Length") ?? "0");
-  if (!Number.isFinite(declared) || declared > MAX_BODY_BYTES) return null;
+  if (!Number.isFinite(declared) || declared > max) return null;
   if (!request.body) return "";
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -106,7 +113,7 @@ async function readBody(request: Request): Promise<string | null> {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > MAX_BODY_BYTES) {
+    if (size > max) {
       await reader.cancel().catch(() => {});
       return null;
     }
@@ -265,8 +272,86 @@ export class UserState extends DurableObject<Env> {
   }
 }
 
+// ---------- お店のサイトに載せる口コミ ----------
+// 1店舗分を1つの Durable Object（SQLite）にためる。写真は縮小済みのJPEGをそのまま保存
+const MAX_REVIEW_BYTES = 900 * 1024; // 写真3枚まで入るように、ここだけ大きめ
+const PHOTO_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/;
+
+interface ReviewIn { text: string; product: string; photos: string[] }
+interface ReviewRow { id: string; created: number; product: string; text: string; status: string; photos: number }
+
+function cleanReview(raw: Record<string, unknown>): ReviewIn | null {
+  const text = typeof raw.text === "string" ? raw.text.trim().slice(0, 1000) : "";
+  if (text.length < 10) return null;
+  const product = typeof raw.product === "string" ? raw.product.trim().slice(0, 40) : "";
+  const photos = Array.isArray(raw.photos)
+    ? raw.photos.filter((p): p is string => typeof p === "string" && p.length < 280 * 1024 && PHOTO_RE.test(p)).slice(0, 3) : [];
+  return { text, product, photos };
+}
+
+export class ReviewStore extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS reviews (
+      id TEXT PRIMARY KEY, created INTEGER, product TEXT, text TEXT, status TEXT, photos INTEGER)`);
+    ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS photos (review_id TEXT, n INTEGER, data TEXT, PRIMARY KEY (review_id, n))`);
+  }
+  async submit(r: ReviewIn): Promise<string> {
+    const id = crypto.randomUUID().slice(0, 12);
+    this.ctx.storage.sql.exec("INSERT INTO reviews VALUES (?, ?, ?, ?, 'pending', ?)", id, Date.now(), r.product, r.text, r.photos.length);
+    r.photos.forEach((data, n) => this.ctx.storage.sql.exec("INSERT INTO photos VALUES (?, ?, ?)", id, n, data));
+    return id;
+  }
+  async list(status: string | null, limit: number): Promise<ReviewRow[]> {
+    const rows = status
+      ? this.ctx.storage.sql.exec("SELECT * FROM reviews WHERE status = ? ORDER BY created DESC LIMIT ?", status, limit)
+      : this.ctx.storage.sql.exec("SELECT * FROM reviews ORDER BY created DESC LIMIT ?", limit);
+    return rows.toArray() as unknown as ReviewRow[];
+  }
+  async setStatus(id: string, status: string): Promise<boolean> {
+    if (status === "deleted") {
+      this.ctx.storage.sql.exec("DELETE FROM photos WHERE review_id = ?", id);
+      return this.ctx.storage.sql.exec("DELETE FROM reviews WHERE id = ?", id).rowsWritten > 0;
+    }
+    return this.ctx.storage.sql.exec("UPDATE reviews SET status = ? WHERE id = ?", status, id).rowsWritten > 0;
+  }
+  // publicOnly のときは、承認済みの口コミの写真だけ返す
+  async photo(id: string, n: number, publicOnly: boolean): Promise<string | null> {
+    const rows = this.ctx.storage.sql.exec(
+      `SELECT p.data FROM photos p JOIN reviews r ON r.id = p.review_id WHERE p.review_id = ? AND p.n = ?${publicOnly ? " AND r.status = 'approved'" : ""}`, id, n).toArray();
+    return rows.length ? String(rows[0].data) : null;
+  }
+}
+
+const reviewStore = (env: Env) => env.REVIEWS.get(env.REVIEWS.idFromName("ririo"));
+const monthOf = (t: number) => { const d = new Date(t + 9 * 3600_000); return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月`; };
+
+// 誰でも読める口コミの一覧と写真（お店のサイトから読むので、どのサイトからでも許可）
+async function publicReviews(request: Request, env: Env, path: string): Promise<Response> {
+  const open = { "Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=60" };
+  const store = reviewStore(env);
+  const m = path.match(/^\/reviews\/photo\/([a-z0-9-]{1,40})\/([0-2])$/);
+  if (m) {
+    const data = await store.photo(m[1], Number(m[2]), true);
+    if (!data) return new Response("not found", { status: 404, headers: open });
+    const bytes = Uint8Array.from(atob(data.split(",")[1]), (c) => c.charCodeAt(0));
+    return new Response(bytes, { headers: { ...open, "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=86400" } });
+  }
+  const limit = Math.max(1, Math.min(50, Number(new URL(request.url).searchParams.get("limit")) || 20));
+  const base = `https://${new URL(request.url).host}`;
+  const rows = await store.list("approved", limit);
+  const reviews = rows.map((r) => ({
+    id: r.id, date: monthOf(r.created), product: r.product, text: r.text,
+    photos: Array.from({ length: r.photos }, (_, n) => `${base}/reviews/photo/${r.id}/${n}`),
+  }));
+  return json({ reviews }, 200, open);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const path = new URL(request.url).pathname;
+    if (request.method === "GET" && (path === "/reviews" || path.startsWith("/reviews/photo/"))) return publicReviews(request, env, path);
+
     // 決められたページ以外（他のサイトや、Originを付けない直接の呼び出し）は断る
     const origin = request.headers.get("Origin");
     if (!isAllowedOrigin(env, origin)) return json({ error: "forbidden" }, 403, {});
@@ -281,11 +366,34 @@ export default {
       if (!success) return json({ error: "too many requests" }, 429, { ...headers, "Retry-After": "60" });
     }
 
-    const body = await readBody(request);
+    const body = await readBody(request, path === "/reviews/submit" ? MAX_REVIEW_BYTES : MAX_BODY_BYTES);
     if (body === null) return json({ error: "payload too large" }, 413, headers);
     const raw = parseJson(body) as Record<string, unknown> | null;
     if (!raw || typeof raw !== "object") return json({ error: "bad request" }, 400, headers);
-    const path = new URL(request.url).pathname;
+
+    // お店のサイトに載せてOKの口コミ（承認されるまでは非公開）
+    if (path === "/reviews/submit") {
+      const r = cleanReview(raw);
+      if (!r) return json({ error: "bad request" }, 400, headers);
+      return json({ id: await reviewStore(env).submit(r) }, 200, headers);
+    }
+    // 承認ページ
+    if (path.startsWith("/reviews/admin/")) {
+      if (!env.REVIEW_ADMIN_KEY || raw.key !== env.REVIEW_ADMIN_KEY) return json({ error: "wrong key" }, 401, headers);
+      const store = reviewStore(env);
+      if (path === "/reviews/admin/list") {
+        const rows = await store.list(null, 200);
+        const reviews = await Promise.all(rows.map(async (r) => ({
+          ...r, date: monthOf(r.created),
+          photos: await Promise.all(Array.from({ length: r.photos }, (_, n) => store.photo(r.id, n, false))),
+        })));
+        return json({ reviews }, 200, headers);
+      }
+      if (path === "/reviews/admin/set" && typeof raw.id === "string" && ["approved", "hidden", "pending", "deleted"].includes(String(raw.status))) {
+        return json({ ok: await store.setStatus(raw.id, String(raw.status)) }, 200, headers);
+      }
+      return json({ error: "bad request" }, 400, headers);
+    }
 
     // 図鑑の読み込み・保存（LINEでログインしている人だけ）
     if (path === "/state/load" || path === "/state/save") {
