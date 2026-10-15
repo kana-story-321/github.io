@@ -207,6 +207,16 @@ dialog h2 { margin: 0; font-size: 20px; }
 }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 
+/* ---------- reward ---------- */
+.reward { display: flex; gap: 12px; align-items: center; margin-top: 16px; padding: 12px 14px; text-align: left;
+  background: var(--paper); border: 2px dashed var(--accent); border-radius: 18px; }
+.reward-art { flex: none; width: 72px; height: 72px; }
+.reward-art svg { width: 72px; height: 72px; display: block; }
+.reward-art.waiting svg { filter: brightness(0); opacity: .25; animation: breathe 1.6s ease-in-out infinite; }
+.reward-title { margin: 0; font-weight: 900; font-size: 14px; }
+.reward-sub { margin: 2px 0 0; font-size: 12px; color: var(--ink-soft); }
+.ghost-btn.wide { display: block; width: 100%; margin-top: 4px; }
+
 /* ---------- partner / evolve ---------- */
 .partner {
   display: flex; gap: 12px; align-items: center; width: 100%; margin-top: 12px; padding: 12px 14px; text-align: left;

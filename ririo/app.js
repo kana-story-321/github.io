@@ -204,14 +204,61 @@
     spawnCrumbs(24, 130, 130);
     $("cookieStage").classList.add("broken");
     const fortune = drawFortune();
-    const isNew = addToZukan(fortune.productId, fortune.stage);
-    fortune.growth = growPartner(fortune);
     store.set("today", fortune);
-    setTimeout(() => {
-      renderResult(fortune, isNew);
-      if (fortune.growth && (fortune.growth.evolved || fortune.growth.joined)) playEvolution(fortune.growth);
-    }, 1300);
+    setTimeout(() => renderResult(fortune), 1300);
   }
+
+  // ---------- キャラの受け取り ----------
+  // 答え合わせ（お店へのアンケート）を最後まで答えたお礼。1日1回まで。
+  // Googleに投稿してもしなくても同じように受け取れる（口コミの見返りにはしない）。
+  const claimedToday = () => store.get("claimed", "") === todayKey;
+  function claimReward() {
+    if (claimedToday()) return null;
+    const fortune = store.get("today", null);
+    if (!fortune) return null;
+    store.set("claimed", todayKey);
+    const isNew = addToZukan(fortune.productId, fortune.stage || 1);
+    const growth = growPartner(fortune);
+    fortune.growth = growth;
+    store.set("today", fortune);
+    return { fortune, isNew, growth };
+  }
+  function playReward(r) {
+    if (!r) return;
+    renderRewardBox();
+    if (r.growth && (r.growth.evolved || r.growth.joined)) { playEvolution(r.growth); return; }
+    const p = productById(r.fortune.productId);
+    const stage = r.fortune.stage || 1;
+    const ov = $("evolve");
+    ov.querySelector(".evolve-art").innerHTML = art(p, stage);
+    ov.querySelector(".evolve-art").className = "evolve-art pop";
+    const partner = store.get("partner", null);
+    const pp = partner && productById(partner.id);
+    ov.querySelector(".evolve-text").textContent = `${nameOf(p, stage)}を図鑑に${r.isNew ? "登録した！" : "もう一度登録した！"}` +
+      (r.growth && r.growth.gained && pp ? `　相棒の${nameOf(pp, stageOf(partner.xp))}のなかよし度 +1` : "");
+    ov.querySelector(".evolve-btns").hidden = false;
+    ov.querySelector("[data-act=wall]").onclick = () => makeWallpaper(p, null, stage);
+    ov.hidden = false;
+  }
+  // 受け取り待ちの表示（完成画面）
+  function renderRewardBox() {
+    const box = $("rewardBox");
+    const f = store.get("today", null);
+    if (!f) { box.hidden = true; return; }
+    const p = productById(f.productId);
+    const done = claimedToday();
+    box.innerHTML = `<div class="reward-art ${done ? "" : "waiting"}">${art(p, f.stage || 1)}</div>
+      <div><p class="reward-title"></p><p class="reward-sub"></p></div>`;
+    box.querySelector(".reward-title").textContent = done ? `${nameOf(p, f.stage || 1)}を受け取りました` : "🎁 答え合わせのお礼に、今日のキャラを図鑑に登録します";
+    box.querySelector(".reward-sub").textContent = done ? "また明日、QRを読んで会いに来てね" : "下のどちらのボタンからでも受け取れます";
+    box.hidden = false;
+    $("skipGoogle").hidden = done;
+  }
+  // Googleマップから戻ってきたときに受け取りの演出を出す
+  let pendingReward = null;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && pendingReward) { const r = pendingReward; pendingReward = null; setTimeout(() => playReward(r), 400); }
+  });
 
   // 相棒を育てる（クッキーは1日1枚なので、なかよし度も1日1まで）
   function growPartner(fortune) {
@@ -308,7 +355,9 @@
   ];
   let state = null;
 
-  function renderResult(fortune, isNew) {
+  function renderResult(fortune) {
+    const seenNow = (store.get("stages", {})[fortune.productId] || []).includes(fortune.stage || 1);
+    const isNew = !seenNow;
     const p = productById(fortune.productId);
     state = state || newSurveyState(fortune);
     $("slip").className = "slip r-" + p.rarity;
@@ -325,9 +374,9 @@
     $("fortuneText").textContent = p.fortune;
     $("keyword").textContent = `〈${p.keyword}〉`;
     $("luckyItem").textContent = fortune.lucky;
-    $("newBadge").hidden = !isNew;
+    $("newBadge").hidden = !isNew || claimedToday();
     $("againNote").textContent = "クッキーは1日1枚。また明日、別のキャラに会えるかも。";
-    renderPartner(fortune.growth);
+    renderPartner(claimedToday() ? fortune.growth : null);
     show("screenResult");
   }
 
@@ -340,8 +389,8 @@
     const stage = stageOf(partner.xp);
     const next = EVOLVE_AT[stage];
     const dots = Array.from({ length: EVOLVE_AT[2] }, (_, i) => `<i class="${i < partner.xp ? "on" : ""}"></i>`).join("");
-    const msg = stage === 3 ? "進化しきった！明日、新しい相棒に出会えるかも" :
-      `あと${next - partner.xp}回QRを読むと${stage === 1 ? "生まれる" : "進化する"}…！`;
+    const msg = stage === 3 ? "進化しきった！次に出会ったキャラが新しい相棒に" :
+      `あと${next - partner.xp}回で${stage === 1 ? "生まれる" : "進化する"}…！${claimedToday() ? "" : "（答え合わせで +1）"}`;
     box.innerHTML = `<div class="partner-art">${art(p, stage)}</div>
       <div class="partner-body"><p class="partner-label">相棒 ${growth && growth.gained ? "<b>なかよし度 +1</b>" : ""}</p>
       <p class="partner-name"></p><div class="dots">${dots}</div><p class="partner-msg"></p></div>`;
@@ -363,7 +412,7 @@
     if (growth.joined && !growth.evolved) {
       stageEl.innerHTML = art(p, 1);
       stageEl.className = "evolve-art pop";
-      text.textContent = `${nameOf(p, 1)}が相棒になった！毎日QRを読むと育つよ`;
+      text.textContent = `${nameOf(p, 1)}が相棒になった！答え合わせをするたびに育つよ（1日1回）`;
       btns.hidden = false;
       return;
     }
@@ -855,7 +904,8 @@
     $("deep").innerHTML = `<h3>🔓 くわしい運勢</h3><p></p><p style="margin-top:6px"></p>`;
     const ps = $("deep").querySelectorAll("p");
     ps[0].textContent = `${focusName()}を選んだあなたは「${trait}」。${line}`;
-    ps[1].textContent = `次に会うと運気が上がるキャラ：${next.emoji} ${next.chara}（${next.name}）`;
+    ps[1].textContent = `次に会うと運気が上がるキャラ：${nameOf(next)}（${next.name}）`;
+    renderRewardBox();
 
     const review = $("review");
     review.value = composeLocal();
@@ -893,8 +943,15 @@
       try { ok = document.execCommand("copy"); } catch { ok = false; }
     }
     toast(ok ? "コピーしました！Googleマップで貼り付けてね" : "文章を長押ししてコピーしてください");
+    const r = claimReward();
+    if (r) {
+      pendingReward = r;
+      // 別タブが開かずページが隠れなかったときは、少し待ってそのまま見せる
+      setTimeout(() => { if (pendingReward === r && document.visibilityState === "visible") { pendingReward = null; playReward(r); } }, 4000);
+    }
     setTimeout(() => window.open(C.gbpReviewUrl, "_blank", "noopener"), ok ? 700 : 1600);
   }
+  function skipGoogle() { playReward(claimReward()); }
 
   // ---------- boot ----------
   function boot() {
@@ -923,13 +980,14 @@
     $("closeZukan").addEventListener("click", () => $("zukan").close());
     $("review").addEventListener("input", updateCount);
     $("copyOpen").addEventListener("click", copyAndOpen);
+    $("skipGoogle").addEventListener("click", skipGoogle);
     $("backToResult").addEventListener("click", () => show("screenResult"));
     $("evolve").querySelector("[data-act=close]").addEventListener("click", () => { $("evolve").hidden = true; });
 
     // 今日すでに割っていたら結果から
     const today = store.get("today", null);
     if (today && today.date === todayKey && productById(today.productId)) {
-      renderResult(today, false);
+      renderResult(today);
     }
   }
 

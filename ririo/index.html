@@ -76,7 +76,7 @@
       <button class="partner" id="partner" type="button" hidden aria-label="相棒の待ち受け画像をもらう"></button>
 
       <button class="primary-btn" id="toSurvey" type="button">占いの答え合わせをする →</button>
-      <p class="note">3問こたえると「くわしい運勢」がひらきます</p>
+      <p class="note">最後までこたえると、今日のキャラが図鑑に登録されます（1日1回）</p>
       <div class="row">
         <button class="ghost-btn" id="shareCard" type="button">📱 待ち受け画像をもらう</button>
       </div>
@@ -105,7 +105,10 @@
       <textarea id="review" rows="9"></textarea>
       <p class="count" id="count"></p>
 
+      <div class="reward" id="rewardBox" hidden></div>
+
       <button class="primary-btn" id="copyOpen" type="button">コピーして Google マップを開く</button>
+      <button class="ghost-btn wide" id="skipGoogle" type="button">Googleには書かずに進む</button>
       <ol class="steps">
         <li><b>1</b>この文章をコピー（上のボタンで自動）</li>
         <li><b>2</b><span id="step2">Googleマップで ☆ をタップして評価</span></li>
