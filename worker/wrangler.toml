@@ -1,0 +1,31 @@
+name = "gbp-ai"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 独自ドメインで公開します（ai-mottainai.jp は Cloudflare のDNSにあるので、DNSレコードは自動で作られます）。
+# *.workers.dev のURLは使わないので閉じておきます。
+workers_dev = false
+routes = [{ pattern = "gbp-api.ai-mottainai.jp", custom_domain = true }]
+
+[vars]
+# 口コミページを置くURL（GitHub Pages など）。ここ以外からの呼び出しは断ります。
+ALLOWED_ORIGIN = "https://gbp.ai-mottainai.jp"
+MODEL = "claude-opus-5-5"
+# "1" にすると http://localhost:8123 からの呼び出しも許可します（手元での確認用。本番では "0" のまま）。
+ALLOW_LOCALHOST = "0"
+
+# 同じIPからの呼び出しを、60秒あたり20回までに制限します。
+# namespace_id はアカウント内で一意の数字なら何でも構いません。
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60
+
+# APIキーは秘密情報なのでここには書きません。
+# GitHub Actions（.github/workflows/deploy-worker.yml）がデプロイ時に登録します。
+# 手元から登録するときは:
+#   npx wrangler secret put ANTHROPIC_API_KEY
