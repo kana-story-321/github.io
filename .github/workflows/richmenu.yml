@@ -1,0 +1,34 @@
+# 公式LINEのリッチメニューを作り直して、全員のメニューに設定します。
+# リッチメニューの画像（ririo/line/richmenu.jpg）や作るスクリプト、LIFF ID（ririo/config.js）が main で変わったとき、
+# または Actions 画面から手動で実行したときに動きます。
+# 必要なリポジトリシークレット: LINE_CHANNEL_ACCESS_TOKEN（未登録なら何もしません）
+name: LINE rich menu
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ririo/line/richmenu.jpg"
+      - "ririo/line/richmenu.mjs"
+      - "ririo/config.js"
+      - ".github/workflows/richmenu.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: line-richmenu
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  richmenu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node ririo/line/richmenu.mjs
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}

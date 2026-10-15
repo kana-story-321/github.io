@@ -34,7 +34,12 @@
    - `ririo/config.js`：`liffId` と `lineUrl`
    - `worker/wrangler.toml`：`LINE_CHANNEL_ID`
 
-## リッチメニュー（LINE Official Account Manager → リッチメニュー）
+## リッチメニュー（自動で設定されます）
+
+GitHub の secret `LINE_CHANNEL_ACCESS_TOKEN` を登録すると、GitHub Actions（「LINE rich menu」）が
+下の内容でリッチメニューを作り、全員のメニューに設定します（`ririo/line/richmenu.mjs`）。
+画像を差し替えて main に入れれば、作り直されます。LINE Official Account Manager でメニューを作る必要はありません。
+
 
 - 画像：[`richmenu.jpg`](richmenu.jpg)（2500×1686、テンプレートは「大・6分割（3×2）」）
   ホームページの雰囲気（クリーム地・ローズピンク・筆記体の英字）に合わせ、キャラは「おみくじ」「図鑑」だけ
