@@ -566,7 +566,7 @@
   const GENERIC_FLAVORS = ["バターの香り", "素材の味", "上品な甘さ", "華やかな見た目"];
 
   const QUESTIONS = [
-    { id: "products", type: "multi", title: () => "答え合わせ！今日食べた（買った）のはどれ？", sub: "いくつでも選べます",
+    { id: "products", type: "single", title: () => "答え合わせ！今日食べた（買った）のはどれ？", sub: "いくつか買った人は、いちばん印象に残ったものを1つ",
       options: () => {
         // 今の季節の商品だけ出す（シールのQRで来た商品は季節外でも出す）
         const list = [...activeProducts.filter((p) => p.seasons), ...activeProducts.filter((p) => !p.seasons)]; // 季節ものを先頭に
@@ -580,22 +580,22 @@
       title: () => `占いのキーワードは〈${fortuneProduct().keyword}〉。${focusName()}、当たってた？`,
       options: () => ["ぴったり当たってた！", "ちょっとだけ", "ぜんぜん違う魅力だった"],
       react: (v) => ({ "ぴったり当たってた！": "さすが！直感が冴えてる日です✨", "ちょっとだけ": "ふむふむ、くわしく教えて！", "ぜんぜん違う魅力だった": "新発見！どんな魅力だった？" }[v]) },
-    { id: "texture", type: "multi", title: () => `${focusName()}の食感は？`, sub: "読む人がいちばん知りたいポイントです",
+    { id: "texture", type: "single", title: () => `${focusName()}の食感は？`, sub: "読む人がいちばん知りたいポイントです",
       options: () => (focusProduct() ? focusProduct().textures : GENERIC_TEXTURES) },
-    { id: "flavor", type: "multi", title: () => "印象に残った味・香りは？",
+    { id: "flavor", type: "single", title: () => "印象に残った味・香りは？",
       options: () => (focusProduct() ? focusProduct().flavors : GENERIC_FLAVORS) },
     { id: "sweet", type: "single", title: () => "甘さはどうでした？", options: () => ["かなり控えめ", "控えめ", "ちょうどいい", "しっかり甘い"], ai: true },
     { id: "scene", type: "single", title: () => "誰と・どんなシーンで？",
       options: () => ["自分へのご褒美", "家族と", "友人と", "手土産・ギフトに", "お祝いに", "仕事の休憩に"] },
-    { id: "gift", type: "multi", when: () => isGiftScene(), title: () => "相手の反応や、向いている相手は？",
+    { id: "gift", type: "single", when: () => isGiftScene(), title: () => "相手の反応や、向いている相手は？",
       options: () => ["とても喜ばれた", "目上の方にも安心", "個包装で配りやすい", "見た目が華やか", "子どもにも人気", "日持ちして助かる"] },
     { id: "timing", type: "single", when: () => ans("scene") && !isGiftScene(), title: () => "どんなタイミングで食べた？",
       options: () => ["朝ごはんに", "午後のおやつ", "夜のご褒美", "コーヒーと", "紅茶と"] },
     { id: "reason", type: "single", title: () => "今日これを選んだ理由は？",
       options: () => C.reasons || ["見た目に惹かれて", "前に食べておいしかった", "口コミを見て", "季節限定だから", "店員さんのおすすめ", "通りがかりに"] },
-    { id: "pref", type: "multi", title: () => "普段はどんなお菓子が好き？", sub: "「自分と好みが近い人の感想だ」と読む人に伝わります",
+    { id: "pref", type: "single", title: () => "普段はどんなお菓子が好き？", sub: "「自分と好みが近い人の感想だ」と読む人に伝わります",
       options: () => ["チョコ系", "フルーツ系", "焼き菓子", "和の素材", "甘さ控えめ派", "甘いものはあまり食べない"], ai: true },
-    { id: "tips", type: "multi", title: () => "次に買う人へのひとこと", sub: "知っていると助かる情報を選んでね",
+    { id: "tips", type: "single", title: () => "次に買う人へのひとこと", sub: "知っていると助かる情報を選んでね",
       options: () => ["日持ちする", "持ち歩きしやすい", "温めるとさらにおいしい", "冷やすとさらにおいしい", "早い時間が品ぞろえ◎", "量がちょうどいい", "価格以上の満足感", "ラッピングが丁寧"] },
     { id: "photo", type: "photo", optional: true, title: () => "買ったお菓子の写真はありますか？", sub: "あれば載せてください（3枚まで・なくてもOK）。お店に届き、Googleの口コミにも付けられます" },
     { id: "free", type: "text", optional: true, title: () => "最後に、ひとことで言うと？", sub: "自由にどうぞ（なくてもOK）", placeholder: "例：外カリ中もちで、また買いに来ます！" },
@@ -708,14 +708,21 @@
     const chips = document.createElement("div");
     chips.className = "chips";
     const chipEls = [];
+    let sent = false;
     for (const o of options) {
       const b = document.createElement("button");
       b.type = "button"; b.className = "chip" + (o === OTHER ? " other" : ""); b.textContent = o;
       b.addEventListener("click", () => {
         if (navigator.vibrate) navigator.vibrate(6);
-        if (q.type === "single") { const was = selected.has(o); selected.clear(); if (!was) selected.add(o); }
-        else selected.has(o) ? selected.delete(o) : selected.add(o);
-        refresh();
+        if (q.type === "single") {
+          selected.clear(); selected.add(o);
+          refresh();
+          // 1つ選ぶ質問はタップで次へ（「その他」だけは書いてから「次へ」）
+          if (o !== OTHER && !q.withText && !sent) { sent = true; setTimeout(() => submit(q, o), 160); }
+        } else {
+          selected.has(o) ? selected.delete(o) : selected.add(o);
+          refresh();
+        }
         if (o === OTHER && selected.has(OTHER)) otherInput.focus();
       });
       chips.appendChild(b);
@@ -758,6 +765,9 @@
       for (const [o, b] of chipEls) b.setAttribute("aria-pressed", selected.has(o) ? "true" : "false");
       if (otherInput) otherInput.hidden = !selected.has(OTHER);
       nextBtn.disabled = !canNext();
+      // 「次へ」は、自由記述を書くときと、いくつも選ぶ質問のときだけ出す
+      nextBtn.hidden = q.type === "single" && !q.withText && !selected.has(OTHER);
+      row.hidden = nextBtn.hidden && !q.optional;
     }
     refresh();
     return el;
@@ -859,7 +869,7 @@
       if (fq) {
         state.aiCount++;
         const id = "ai" + state.aiCount;
-        const aq = { id, isAI: true, type: fq.multi ? "multi" : "single", title: fq.title, sub: fq.sub, options: fq.options, optional: true };
+        const aq = { id, isAI: true, type: "single", title: fq.title, sub: fq.sub, options: fq.options, optional: true };
         state.aiAsked = state.aiAsked || {};
         state.aiAsked[id] = aq;
         state.aiQuestions.push(aq);

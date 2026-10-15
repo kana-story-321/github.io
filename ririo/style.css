@@ -315,3 +315,4 @@ body.theme-christmas .season-banner { background: linear-gradient(90deg, #2f6b3a
 .photo-box { margin-top: 12px; padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; text-align: left; }
 .photo-note { margin: 0; font-size: 13px; font-weight: 700; }
 #copyOpen { font-size: 15px; padding: 16px 8px; white-space: nowrap; }
+.card-actions[hidden], .next-btn[hidden] { display: none; }
