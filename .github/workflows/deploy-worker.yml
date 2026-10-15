@@ -1,0 +1,63 @@
+# AI中継サーバー（worker/）を Cloudflare Workers に自動デプロイします。
+# main ブランチの worker/ 以下が変わったとき、または Actions 画面から手動で実行したときに動きます。
+#
+# 必要なリポジトリシークレット（Settings → Secrets and variables → Actions）:
+#   CLOUDFLARE_API_TOKEN   … Cloudflare の APIトークン（下記の権限）
+#   CLOUDFLARE_ACCOUNT_ID  … Cloudflare のアカウントID（ダッシュボードの Workers & Pages 画面の右側に表示）
+#   ANTHROPIC_API_KEY      … Claude APIキー。デプロイのたびに Worker のシークレットとして登録されます
+#
+# APIトークンの作り方:
+#   Cloudflare ダッシュボード → My Profile → API Tokens → Create Token →
+#   テンプレート「Edit Cloudflare Workers」を使い、対象を自分のアカウントと ai-mottainai.jp ゾーンだけに絞ります。
+#   テンプレートに含まれる権限:
+#     Account: Workers Scripts:Edit / Account Settings:Read（ほかに Workers KV・R2:Edit、Workers Tail:Read）
+#     Zone:    Workers Routes:Edit（ゾーン ai-mottainai.jp）
+#     User:    User Details:Read / Memberships:Read
+#   独自ドメイン（gbp-api.ai-mottainai.jp）のDNSレコードを自動作成するため、
+#   念のため Zone: DNS:Edit（ゾーン ai-mottainai.jp）も追加しておきます。
+name: Deploy worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - ".github/workflows/deploy-worker.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - run: npm ci
+
+      - run: npx tsc --noEmit
+
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          workingDirectory: worker
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          secrets: |
+            ANTHROPIC_API_KEY
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
