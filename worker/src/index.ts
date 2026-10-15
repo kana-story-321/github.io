@@ -8,7 +8,15 @@ interface Env {
   ANTHROPIC_API_KEY: string;
   ALLOWED_ORIGIN: string;
   MODEL?: string;
+  // "1" のときだけ http://localhost:8123 からの呼び出しを許可する（手元での確認用）
+  ALLOW_LOCALHOST?: string;
+  // wrangler.toml の [[ratelimits]]。手元の開発などで無いときは制限をかけない
+  RATE_LIMITER?: RateLimit;
 }
+
+// 1回の呼び出しで受け付ける本文の大きさの上限（20KB）。回答は数KBに収まるので十分です。
+const MAX_BODY_BYTES = 20 * 1024;
+const LOCALHOST_ORIGIN = "http://localhost:8123";
 
 interface SurveyContext {
   shopName: string;
@@ -58,17 +66,60 @@ const COMPOSE_SCHEMA = {
   additionalProperties: false,
 };
 
-function cors(env: Env, origin: string | null): Record<string, string> {
+// 呼び出しを許すページのURL（Origin）かどうか。完全一致だけを認める
+function isAllowedOrigin(env: Env, origin: string | null): origin is string {
+  if (!origin) return false;
+  if (origin === env.ALLOWED_ORIGIN) return true;
+  return env.ALLOW_LOCALHOST === "1" && origin === LOCALHOST_ORIGIN;
+}
+
+function cors(origin: string): Record<string, string> {
   return {
-    "Access-Control-Allow-Origin": origin === env.ALLOWED_ORIGIN ? origin : env.ALLOWED_ORIGIN,
+    "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
 }
 
 function json(body: unknown, status: number, headers: Record<string, string>): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...headers, "Content-Type": "application/json; charset=utf-8" } });
+}
+
+// 本文を上限つきで読む。上限を超えたら途中で読むのをやめて null を返す
+async function readBody(request: Request): Promise<string | null> {
+  const declared = Number(request.headers.get("Content-Length") ?? "0");
+  if (!Number.isFinite(declared) || declared > MAX_BODY_BYTES) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const buf = new Uint8Array(size);
+  let offset = 0;
+  for (const c of chunks) {
+    buf.set(c, offset);
+    offset += c.byteLength;
+  }
+  return new TextDecoder().decode(buf);
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 function parseContext(raw: unknown): SurveyContext | null {
@@ -114,11 +165,23 @@ async function ask(env: Env, system: string, userText: string, schema: Record<st
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const headers = cors(env, request.headers.get("Origin"));
+    // 決められたページ以外（他のサイトや、Originを付けない直接の呼び出し）は断る
+    const origin = request.headers.get("Origin");
+    if (!isAllowedOrigin(env, origin)) return json({ error: "forbidden" }, 403, {});
+    const headers = cors(origin);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
     if (request.method !== "POST") return json({ error: "method not allowed" }, 405, headers);
 
-    const ctx = parseContext(await request.json().catch(() => null));
+    // 同じIPからの呼び出しすぎを止める（有料APIを使い込まれないように）
+    if (env.RATE_LIMITER) {
+      const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+      const { success } = await env.RATE_LIMITER.limit({ key: ip });
+      if (!success) return json({ error: "too many requests" }, 429, { ...headers, "Retry-After": "60" });
+    }
+
+    const body = await readBody(request);
+    if (body === null) return json({ error: "payload too large" }, 413, headers);
+    const ctx = parseContext(parseJson(body));
     if (!ctx) return json({ error: "bad request" }, 400, headers);
     const path = new URL(request.url).pathname;
 
