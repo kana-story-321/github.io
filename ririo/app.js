@@ -258,9 +258,8 @@
     box.innerHTML = `<div class="reward-art ${done ? "" : "waiting"}">${art(p, f.stage || 1)}</div>
       <div><p class="reward-title"></p><p class="reward-sub"></p></div>`;
     box.querySelector(".reward-title").textContent = done ? `${nameOf(p, f.stage || 1)}を受け取りました` : "🎁 答え合わせのお礼に、今日のキャラを図鑑に登録します";
-    box.querySelector(".reward-sub").textContent = done ? "また明日、QRを読んで会いに来てね" : "下のどちらのボタンからでも受け取れます";
+    box.querySelector(".reward-sub").textContent = done ? "また明日、QRを読んで会いに来てね" : "下のボタンでも「次に進む」でも受け取れます";
     box.hidden = false;
-    $("skipGoogle").hidden = done;
   }
   // Googleマップから戻ってきたときに受け取りの演出を出す
   let pendingReward = null;
@@ -556,7 +555,8 @@
 
   const ans = (id) => state.answers[id];
   const arr = (id) => [].concat(ans(id) || []);
-  const eatenNames = () => arr("products").filter((n) => n !== "その他");
+  const OTHER = "その他";
+  const eatenNames = () => arr("products").filter((n) => n !== OTHER);
   const focusName = () => ans("focus") || eatenNames()[0] || "今日のお菓子";
   const focusProduct = () => productByName(focusName());
   const fortuneProduct = () => productById(state.fortune.productId);
@@ -572,11 +572,11 @@
         const list = [...activeProducts.filter((p) => p.seasons), ...activeProducts.filter((p) => !p.seasons)]; // 季節ものを先頭に
         const preset = productById(params.get("p"));
         if (preset && !list.includes(preset)) list.push(preset);
-        return list.map((p) => p.name).concat(["その他"]);
+        return list.map((p) => p.name);
       } },
-    { id: "focus", type: "single", when: () => eatenNames().length > 1, title: () => "いちばん印象に残ったのは？",
+    { id: "focus", type: "single", noOther: true, when: () => eatenNames().length > 1, title: () => "いちばん印象に残ったのは？",
       options: () => eatenNames() },
-    { id: "check", type: "single",
+    { id: "check", type: "single", noOther: true,
       title: () => `占いのキーワードは〈${fortuneProduct().keyword}〉。${focusName()}、当たってた？`,
       options: () => ["ぴったり当たってた！", "ちょっとだけ", "ぜんぜん違う魅力だった"],
       react: (v) => ({ "ぴったり当たってた！": "さすが！直感が冴えてる日です✨", "ちょっとだけ": "ふむふむ、くわしく教えて！", "ぜんぜん違う魅力だった": "新発見！どんな魅力だった？" }[v]) },
@@ -700,40 +700,66 @@
       return el;
     }
 
-    const options = typeof q.options === "function" ? q.options() : q.options;
+    // 選択肢の最後に「その他」を足し、選ぶと自由記述の欄が出る（自由記述欄がある質問・占いの答え合わせは除く）
+    const withOther = !q.noOther && !q.withText;
+    const options = (typeof q.options === "function" ? q.options() : q.options).filter((o) => o !== OTHER);
+    if (withOther) options.push(OTHER);
     const selected = new Set(opts.preselect || []);
     const chips = document.createElement("div");
     chips.className = "chips";
-    let nextBtn = null;
+    const chipEls = [];
     for (const o of options) {
       const b = document.createElement("button");
-      b.type = "button"; b.className = "chip"; b.textContent = o;
-      b.setAttribute("aria-pressed", selected.has(o) ? "true" : "false");
+      b.type = "button"; b.className = "chip" + (o === OTHER ? " other" : ""); b.textContent = o;
       b.addEventListener("click", () => {
         if (navigator.vibrate) navigator.vibrate(6);
-        if (q.type === "single") { submit(q, o); return; }
-        selected.has(o) ? selected.delete(o) : selected.add(o);
-        b.setAttribute("aria-pressed", selected.has(o) ? "true" : "false");
-        if (nextBtn) nextBtn.disabled = !selected.size && !q.optional && !q.withText;
+        if (q.type === "single") { const was = selected.has(o); selected.clear(); if (!was) selected.add(o); }
+        else selected.has(o) ? selected.delete(o) : selected.add(o);
+        refresh();
+        if (o === OTHER && selected.has(OTHER)) otherInput.focus();
       });
       chips.appendChild(b);
+      chipEls.push([o, b]);
     }
     el.appendChild(chips);
 
+    let otherInput = null;
+    if (withOther) {
+      otherInput = document.createElement("input");
+      otherInput.type = "text"; otherInput.className = "other-input"; otherInput.maxLength = 60;
+      otherInput.placeholder = "その他の答えを自由に書いてね";
+      otherInput.hidden = true;
+      otherInput.addEventListener("input", () => refresh());
+      el.appendChild(otherInput);
+    }
     let ta = null;
     if (q.withText) {
       ta = document.createElement("textarea");
       ta.rows = 2; ta.placeholder = "自由に書いてもOK（例：栗のお菓子が食べたい）";
       el.appendChild(ta);
     }
-    if (q.type === "multi") {
-      const value = () => (q.withText ? { chips: [...selected], text: ta.value.trim() } : [...selected]);
-      const row = actions(() => submit(q, value()), q.optional, () => submit(q, null), !selected.size && !q.optional && !q.withText);
-      nextBtn = row.querySelector(".next-btn");
-      el.appendChild(row);
-    } else if (q.optional) {
-      el.appendChild(actions(null, true, () => submit(q, null)));
+
+    // 「その他」は書いた言葉に置きかえて答えにする
+    const picked = () => {
+      const list = [...selected].filter((o) => o !== OTHER);
+      const own = otherInput ? otherInput.value.trim() : "";
+      if (selected.has(OTHER) && own) list.push(own);
+      return list;
+    };
+    const value = () => (q.withText ? { chips: picked(), text: ta.value.trim() } : q.type === "single" ? picked()[0] : picked());
+    const canNext = () => {
+      if (selected.has(OTHER) && !otherInput.value.trim()) return false; // 「その他」を選んだら一言書いてもらう
+      return picked().length > 0 || !!q.withText || (q.type === "multi" && !!q.optional);
+    };
+    const row = actions(() => submit(q, value()), q.optional, () => submit(q, null), true);
+    const nextBtn = row.querySelector(".next-btn");
+    el.appendChild(row);
+    function refresh() {
+      for (const [o, b] of chipEls) b.setAttribute("aria-pressed", selected.has(o) ? "true" : "false");
+      if (otherInput) otherInput.hidden = !selected.has(OTHER);
+      nextBtn.disabled = !canNext();
     }
+    refresh();
     return el;
   }
 
@@ -906,13 +932,14 @@
     "早い時間が品ぞろえ◎": "早めの時間に行くと品ぞろえが豊富です", "量がちょうどいい": "量もちょうどいいです",
     "価格以上の満足感": "価格以上の満足感がありました", "ラッピングが丁寧": "ラッピングも丁寧でした",
   };
+  const PREF_FIXED = ["甘さ控えめ派", "甘いものはあまり食べない"];
   const PREF = { "チョコ系": "チョコ系", "フルーツ系": "フルーツ系", "焼き菓子": "焼き菓子", "和の素材": "和の素材のお菓子" };
 
   function composeLocal() {
     const s = [];
     const names = eatenNames();
     if (names.length) {
-      const r = REASON[ans("reason")];
+      const r = REASON[ans("reason")] || (ans("reason") ? `「${ans("reason")}」がきっかけで` : "");
       s.push(`${r ? r + "、" : ""}${joinTo(names)}を購入しました。`);
     }
 
@@ -925,25 +952,30 @@
       s.push(`${focus}は${joinTo(f)}が印象的でした。`);
     }
     if (SWEET[ans("sweet")]) s.push(SWEET[ans("sweet")]);
+    else if (ans("sweet")) s.push(`甘さは「${ans("sweet")}」という印象でした。`);
 
     const pref = arr("pref");
     const mild = ["かなり控えめ", "控えめ", "ちょうどいい"].includes(ans("sweet"));
     if (pref.includes("甘いものはあまり食べない") && mild) s.push("普段あまり甘いものを食べない私でも、ぺろりと食べられました。");
     else if (pref.includes("甘さ控えめ派") && mild) s.push("甘さ控えめ派の私でも、最後までおいしく食べられました。");
-    else if (pref.some((p) => PREF[p])) s.push(`普段は${joinTo(pref.filter((p) => PREF[p]).map((p) => PREF[p]))}が好きな私も、${vary("p", ["大満足でした。", "また食べたいと思える味でした。"])}`);
+    else {
+      // 選択肢の言葉は言いかえ、「その他」に書いた言葉はそのまま使う
+      const liked = pref.filter((p) => PREF[p] || !PREF_FIXED.includes(p)).map((p) => PREF[p] || p);
+      if (liked.length) s.push(`普段は${joinTo(liked)}が好きな私も、${vary("p", ["大満足でした。", "また食べたいと思える味でした。"])}`);
+    }
 
     const scene = ans("scene");
     if (scene && isGiftScene()) {
       s.push(`${SCENE[scene]}選びました。`);
-      const g = arr("gift").map((x) => GIFT[x]).filter(Boolean);
+      const g = arr("gift").map((x) => GIFT[x] || x);
       if (g.length) s.push(g.join("。") + "。");
     } else if (scene) {
-      const tm = TIMING[ans("timing")];
-      const sc = scene === "自分へのご褒美" && ans("timing") === "夜のご褒美" ? "" : SCENE[scene];
+      const tm = TIMING[ans("timing")] || ans("timing");
+      const sc = scene === "自分へのご褒美" && ans("timing") === "夜のご褒美" ? "" : SCENE[scene] || scene;
       s.push([sc, tm].filter(Boolean).join("、") + "いただきました。");
     }
 
-    const tips = arr("tips").map((x) => TIPS[x]).filter(Boolean);
+    const tips = arr("tips").map((x) => TIPS[x] || x);
     if (tips.length) s.push(tips.join("。") + "。");
     if (ans("free")) s.push(end(ans("free")));
     return s.join("");
@@ -963,17 +995,97 @@
     "ぜんぜん違う魅力だった": ["新発見ハンタータイプ", "今週は、はじめてのお店や道に出会いがあります。"],
   };
 
-  async function finishSurvey() {
-    state.finished = true;
-    show("screenFinish");
+  // くわしい運勢。日付と今日のキャラで決まるので、同じ日に何度開いても同じ内容になる
+  const STAR_TEXT = {
+    love: ["焦らずゆっくりが吉。自分を大事にする日。", "さりげない気づかいが伝わる日。", "うれしい連絡が届きそう。素直な言葉が◎"],
+    work: ["今日は準備の日。メモをとっておくと後で役立ちます。", "ひとつずつ片づけると、午後から流れにのれます。", "ひらめきが冴える日。思いついたら即メモ！"],
+    money: ["小さな出費はごほうびと割り切って。", "使うほどめぐる日。誰かへのプレゼントが吉。", "思わぬお得に出会えそう。レシートは大事に。"],
+    treat: ["今日は甘いもので一休みが正解。", "ひと口目をゆっくり味わうと運気アップ。", "ごほうび運MAX！気になっていたお菓子をどうぞ。"],
+  };
+  const LUCKY_COLORS = ["キャラメル色", "ミルクティー色", "いちごピンク", "レモンイエロー", "ピスタチオグリーン", "ショコラブラウン", "マロンベージュ", "パンプキンオレンジ"];
+  const LUCKY_ACTIONS = ["温かい飲みものをていねいに淹れる", "いつもと違う道を歩く", "誰かに「おいしかった」を伝える", "窓をあけて深呼吸", "お気に入りの器でおやつを食べる", "手書きでメモを残す", "5分だけ早く寝る", "写真を1枚撮っておく"];
+  const LUCKY_TIME = { "朝ごはんに": "朝 8時ごろ", "午後のおやつ": "午後 3時ごろ", "夜のご褒美": "夜 9時ごろ", "コーヒーと": "午後 2時ごろ", "紅茶と": "午後 4時ごろ" };
+  const SWEET_ADVICE = {
+    "かなり控えめ": "ほどよい加減を知っているあなた。今週は「腹八分目」の判断がうまくいきます。",
+    "控えめ": "上品なものを見分けるあなた。迷ったら、シンプルなほうを選ぶと吉。",
+    "ちょうどいい": "バランス上手なあなた。今週は人と人のあいだをつなぐ役で輝きます。",
+    "しっかり甘い": "ごほうび上手なあなた。今週は自分をちょっと甘やかすほど運気アップ。",
+  };
+  const RANK_STARS = { "大吉": 5, "中吉": 4, "小吉": 3, "吉": 3, "末吉": 2 };
+
+  function seededRandom(seedText) {
+    let h = 2166136261;
+    for (const ch of seedText) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 10000) / 10000; };
+  }
+
+  function renderFortune() {
+    const rnd = seededRandom(todayKey + state.fortune.productId);
+    const pick = (list) => list[Math.floor(rnd() * list.length)];
     const [trait, line] = TRAIT[ans("check")] || ["マイペースタイプ", "今週は、自分のペースを守ると吉。"];
     const eaten = new Set(eatenNames());
     const candidates = activeProducts.filter((p) => !eaten.has(p.name) && p.id !== state.fortune.productId);
     const next = candidates.find((p) => p.seasons) || candidates[0] || fortuneProduct();
-    $("deep").innerHTML = `<h3>🔓 くわしい運勢</h3><p></p><p style="margin-top:6px"></p>`;
-    const ps = $("deep").querySelectorAll("p");
-    ps[0].textContent = `${focusName()}を選んだあなたは「${trait}」。${line}`;
-    ps[1].textContent = `次に会うと運気が上がるキャラ：${nameOf(next)}（${next.name}）`;
+    const stars = (n) => "★".repeat(n) + "☆".repeat(5 - n);
+    const rows = [
+      ["総合運", RANK_STARS[state.fortune.rank] || 3, fortuneProduct().fortune],
+      ...[["恋愛運", "love"], ["仕事・勉強運", "work"], ["金運", "money"], ["ごほうび運", "treat"]].map(([label, key]) => {
+        const n = 2 + Math.floor(rnd() * 4); // 2〜5
+        return [label, n, STAR_TEXT[key][n <= 2 ? 0 : n <= 4 ? 1 : 2]];
+      }),
+    ];
+    const lucky = [
+      ["ラッキーアイテム", state.fortune.lucky],
+      ["ラッキーカラー", pick(LUCKY_COLORS)],
+      ["ラッキータイム", LUCKY_TIME[ans("timing")] || pick(Object.values(LUCKY_TIME))],
+      ["開運アクション", pick(LUCKY_ACTIONS)],
+    ];
+    const box = $("deep");
+    box.innerHTML = `<h3>🔮 今日のくわしい運勢</h3>
+      <p class="ft-type"></p><p class="ft-line"></p>
+      <div class="ft-rows">${rows.map(() => `<div class="ft-row"><span class="ft-label"></span><span class="ft-stars"></span><p class="ft-text"></p></div>`).join("")}</div>
+      <dl class="ft-lucky">${lucky.map(() => "<div><dt></dt><dd></dd></div>").join("")}</dl>
+      <p class="ft-advice"></p>
+      <div class="ft-next"><div class="ft-next-art">${art(next, 1)}</div><p></p></div>
+      <a class="line-btn" target="_blank" rel="noopener" hidden>明日の運勢もチェック！LINEで友だち追加して、新作・季節限定のお知らせを受け取る</a>`;
+    box.querySelector(".ft-type").textContent = `${focusName()}を選んだあなたは「${trait}」`;
+    box.querySelector(".ft-line").textContent = line;
+    box.querySelectorAll(".ft-row").forEach((el, i) => {
+      el.querySelector(".ft-label").textContent = rows[i][0];
+      el.querySelector(".ft-stars").textContent = stars(rows[i][1]);
+      el.querySelector(".ft-stars").setAttribute("aria-label", `5段階中${rows[i][1]}`);
+      el.querySelector(".ft-text").textContent = rows[i][2];
+    });
+    box.querySelectorAll(".ft-lucky div").forEach((el, i) => {
+      el.querySelector("dt").textContent = lucky[i][0];
+      el.querySelector("dd").textContent = lucky[i][1];
+    });
+    const advice = box.querySelector(".ft-advice");
+    advice.textContent = SWEET_ADVICE[ans("sweet")] || "";
+    advice.hidden = !advice.textContent;
+    box.querySelector(".ft-next p").textContent = `次に会うと運気が上がるキャラ：${nameOf(next)}（${next.name}）`;
+    setupLine(box.querySelector(".line-btn"));
+  }
+
+  function setupLine(a) {
+    if (!a) return;
+    a.hidden = !C.lineUrl;
+    if (C.lineUrl) a.href = C.lineUrl;
+  }
+
+  // くわしい運勢を出して、そこまでスクロールする
+  function revealFortune(scroll) {
+    const box = $("deep");
+    if (!state || !state.finished) return;
+    box.hidden = false;
+    if (scroll) box.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function finishSurvey() {
+    state.finished = true;
+    show("screenFinish");
+    renderFortune();
+    $("deep").hidden = !claimedToday();
     renderRewardBox();
     renderFinishPhotos();
 
@@ -1014,6 +1126,7 @@
       try { ok = document.execCommand("copy"); } catch { ok = false; }
     }
     toast(ok ? "コピーしました！Googleマップで貼り付けてね" : "文章を長押ししてコピーしてください");
+    revealFortune(false);
     const r = claimReward();
     if (r) {
       pendingReward = r;
@@ -1022,7 +1135,11 @@
     }
     setTimeout(() => window.open(C.gbpReviewUrl, "_blank", "noopener"), ok ? 700 : 1600);
   }
-  function skipGoogle() { playReward(claimReward()); }
+  function skipGoogle() {
+    revealFortune(false);
+    const r = claimReward();
+    if (r) playReward(r); else revealFortune(true);
+  }
 
   // ---------- boot ----------
   function boot() {
@@ -1053,7 +1170,13 @@
     $("copyOpen").addEventListener("click", copyAndOpen);
     $("skipGoogle").addEventListener("click", skipGoogle);
     $("backToResult").addEventListener("click", () => show("screenResult"));
-    $("evolve").querySelector("[data-act=close]").addEventListener("click", () => { $("evolve").hidden = true; });
+    $("evolve").querySelector("[data-act=close]").addEventListener("click", () => {
+      $("evolve").hidden = true;
+      if (!$("screenFinish").hidden) revealFortune(true); // 受け取ったあとは、最後のくわしい運勢へ
+    });
+    $("evolve").querySelector("[data-act=zukan]").addEventListener("click", () => { $("evolve").hidden = true; openZukan(); });
+    $("finishZukan").addEventListener("click", openZukan);
+    setupLine($("zukanLine"));
 
     // 今日すでに割っていたら結果から
     const today = store.get("today", null);
