@@ -44,10 +44,20 @@
     const label = seasonLabel(p);
     return label && !p.name.includes(label.replace("限定", "")) ? `${p.name}（${label}）` : p.name;
   };
-  // キャラの絵（chara.js）。絵がなければ絵文字
-  const art = (p) => (window.CHARA_SVG && window.CHARA_SVG(p.id)) || p.emoji;
-  function artImage(p) {
-    const svgText = window.CHARA_SVG && window.CHARA_SVG(p.id);
+  // ---------- 進化（evolve.js） ----------
+  // 定番キャラは3段階に育つ。QRを読んでクッキーを割るたび（1日1回）に「相棒」のなかよし度が1たまる。
+  const LINES = window.EVOLVE_LINES || {};
+  const EVOLVE_AT = [0, 3, 7]; // 段階2・3になるのに必要ななかよし度
+  const RARE_EVOLVED_RATE = 0.05; // 進化しきった姿でいきなり出てくる確率
+  const hasLine = (p) => !!(p && LINES[p.id]);
+  const stageOf = (xp) => (xp >= EVOLVE_AT[2] ? 3 : xp >= EVOLVE_AT[1] ? 2 : 1);
+  const nameOf = (p, stage) => (hasLine(p) ? LINES[p.id].names[(stage || 1) - 1] : p.chara);
+  const descOf = (p, stage) => (hasLine(p) ? LINES[p.id].descs[(stage || 1) - 1] : "");
+  const svgOf = (p, stage) => (hasLine(p) ? window.EVOLVE_SVG(stage || 1, p.id) : window.CHARA_SVG && window.CHARA_SVG(p.id));
+  // キャラの絵。絵がなければ絵文字
+  const art = (p, stage) => svgOf(p, stage) || p.emoji;
+  function artImage(p, stage) {
+    const svgText = svgOf(p, stage);
     if (!svgText) return Promise.resolve(null);
     return new Promise((resolve) => {
       const img = new Image();
@@ -99,8 +109,9 @@
       }
       product = product || activeProducts[0];
     }
-    const rank = product.rarity === "SSR" ? "大吉" : pick(C.luckRanks);
-    return { productId: product.id, rank, lucky: pick(C.luckyItems), date: todayKey };
+    const stage = hasLine(product) && Math.random() < RARE_EVOLVED_RATE ? 3 : 1;
+    const rank = product.rarity === "SSR" || stage === 3 ? "大吉" : pick(C.luckRanks);
+    return { productId: product.id, stage, rank, lucky: pick(C.luckyItems), date: todayKey };
   }
   function countOfRarity(r) { return activeProducts.filter((p) => p.rarity === r).length; }
   // 季節限定キャラは、その季節のあいだ出やすくする
@@ -193,9 +204,34 @@
     spawnCrumbs(24, 130, 130);
     $("cookieStage").classList.add("broken");
     const fortune = drawFortune();
+    const isNew = addToZukan(fortune.productId, fortune.stage);
+    fortune.growth = growPartner(fortune);
     store.set("today", fortune);
-    const isNew = addToZukan(fortune.productId);
-    setTimeout(() => renderResult(fortune, isNew), 1300);
+    setTimeout(() => {
+      renderResult(fortune, isNew);
+      if (fortune.growth && (fortune.growth.evolved || fortune.growth.joined)) playEvolution(fortune.growth);
+    }, 1300);
+  }
+
+  // 相棒を育てる（クッキーは1日1枚なので、なかよし度も1日1まで）
+  function growPartner(fortune) {
+    let partner = store.get("partner", null);
+    const done = store.get("graduated", []);
+    const drawn = productById(fortune.productId);
+    let joined = false;
+    if ((!partner || partner.xp >= EVOLVE_AT[2]) && hasLine(drawn) && !done.includes(drawn.id) && (!partner || partner.id !== drawn.id)) {
+      partner = { id: drawn.id, xp: 0 };
+      joined = true;
+    }
+    if (!partner || !hasLine(productById(partner.id))) return null;
+    if (partner.xp >= EVOLVE_AT[2]) return { id: partner.id, xp: partner.xp, from: 3, to: 3 };
+    const from = stageOf(partner.xp);
+    partner.xp += 1;
+    const to = stageOf(partner.xp);
+    store.set("partner", partner);
+    markSeen(partner.id, to);
+    if (to === 3 && !done.includes(partner.id)) store.set("graduated", done.concat(partner.id));
+    return { id: partner.id, xp: partner.xp, from, to, evolved: to > from, joined, gained: true };
   }
 
   async function enableShake() {
@@ -217,34 +253,50 @@
   }
 
   // ---------- zukan ----------
-  function addToZukan(productId) {
-    const z = store.get("zukan", {});
-    const isNew = !z[productId];
-    z[productId] = (z[productId] || 0) + 1;
-    store.set("zukan", z);
+  // 図鑑：商品ごとの出会った回数と、見たことのある段階
+  function markSeen(productId, stage) {
+    const seen = store.get("stages", {});
+    const isNew = !(seen[productId] || []).includes(stage);
+    if (isNew) { seen[productId] = (seen[productId] || []).concat(stage); store.set("stages", seen); }
     updateZukanCount();
     return isNew;
   }
-  function updateZukanCount() {
+  function addToZukan(productId, stage = 1) {
     const z = store.get("zukan", {});
-    $("zukanCount").textContent = `${Object.keys(z).filter(productById).length}/${C.products.length}`;
+    z[productId] = (z[productId] || 0) + 1;
+    store.set("zukan", z);
+    return markSeen(productId, stage);
+  }
+  const zukanTotal = () => C.products.reduce((n, p) => n + (hasLine(p) ? 3 : 1), 0);
+  function zukanFound() {
+    const seen = store.get("stages", {});
+    const z = store.get("zukan", {});
+    return C.products.reduce((n, p) => n + (hasLine(p) ? (seen[p.id] || []).length : (z[p.id] || (seen[p.id] || []).length) ? 1 : 0), 0);
+  }
+  function updateZukanCount() {
+    $("zukanCount").textContent = `${zukanFound()}/${zukanTotal()}`;
   }
   function openZukan() {
     const z = store.get("zukan", {});
-    $("zukanProgress").textContent = `${Object.keys(z).filter(productById).length}/${C.products.length}`;
+    const seen = store.get("stages", {});
+    $("zukanProgress").textContent = `${zukanFound()}/${zukanTotal()}`;
+    const one = (p, stage, owned, label) => `<div class="zk ${owned ? "" : "locked"}" ${owned ? `data-wall="${p.id}" data-stage="${stage || 1}" role="button" tabindex="0"` : ""}>
+        <span class="e">${art(p, stage)}</span>${owned ? nameOf(p, stage) : "？？？"}<div class="n">${label}</div></div>`;
     const cell = (p) => {
+      if (hasLine(p)) {
+        const got = seen[p.id] || [];
+        return `<div class="zk-line"><p class="zk-line-name">${p.name}</p>${[1, 2, 3].map((st) => one(p, st, got.includes(st), ["たまご期", "こども期", "進化形"][st - 1])).join("")}</div>`;
+      }
       const owned = z[p.id];
       const tag = p.seasons ? `<div class="n ${isActive(p) ? "now" : ""}">${isActive(p) ? "出現中！" : seasonLabel(p)}</div>` : "";
-      return `<div class="zk ${owned ? "" : "locked"}" ${owned ? `data-wall="${p.id}" role="button" tabindex="0"` : ""}>
-        <span class="e">${art(p)}</span>${owned ? p.chara : "？？？"}
-        <div class="n">${p.rarity}${owned ? ` ・ ${owned}回` : ""}</div>${tag}</div>`;
+      return one(p, null, owned, `${p.rarity}${owned ? ` ・ ${owned}回` : ""}`).replace(/<\/div>$/, `${tag}</div>`);
     };
     const regular = C.products.filter((p) => !p.seasons);
     const seasonal = C.products.filter((p) => p.seasons).sort((a, b) => isActive(b) - isActive(a));
     $("zukanGrid").innerHTML = `<p class="zk-head">定番</p>${regular.map(cell).join("")}
       <p class="zk-head">季節限定 <small>季節ごとに入れかわります</small></p>${seasonal.map(cell).join("")}`;
     for (const el of $("zukanGrid").querySelectorAll("[data-wall]")) {
-      el.addEventListener("click", () => makeWallpaper(productById(el.dataset.wall), null));
+      el.addEventListener("click", () => makeWallpaper(productById(el.dataset.wall), null, +el.dataset.stage || 1));
     }
     $("zukan").showModal();
   }
@@ -261,19 +313,72 @@
     state = state || newSurveyState(fortune);
     $("slip").className = "slip r-" + p.rarity;
     $("rank").textContent = fortune.rank;
+    const stage = fortune.stage || 1;
     const chara = $("chara");
-    chara.innerHTML = art(p);
+    chara.innerHTML = art(p, stage);
     chara.style.background = p.color + "33";
-    $("rarity").textContent = p.rarity;
-    $("rarity").className = "rarity " + p.rarity;
-    $("resultTitle").textContent = p.chara;
+    $("rarity").textContent = stage === 3 && hasLine(p) ? "✨進化形" : p.rarity;
+    $("rarity").className = "rarity " + (stage === 3 && hasLine(p) ? "SSR" : p.rarity);
+    if (stage === 3 && hasLine(p)) $("slip").className = "slip r-SSR";
+    $("resultTitle").textContent = nameOf(p, stage);
     $("productName").textContent = `今日のお菓子：${productLabel(p)}`;
     $("fortuneText").textContent = p.fortune;
     $("keyword").textContent = `〈${p.keyword}〉`;
     $("luckyItem").textContent = fortune.lucky;
     $("newBadge").hidden = !isNew;
     $("againNote").textContent = "クッキーは1日1枚。また明日、別のキャラに会えるかも。";
+    renderPartner(fortune.growth);
     show("screenResult");
+  }
+
+  // 相棒の育ち具合
+  function renderPartner(growth) {
+    const box = $("partner");
+    const partner = store.get("partner", null);
+    const p = partner && productById(partner.id);
+    if (!hasLine(p)) { box.hidden = true; return; }
+    const stage = stageOf(partner.xp);
+    const next = EVOLVE_AT[stage];
+    const dots = Array.from({ length: EVOLVE_AT[2] }, (_, i) => `<i class="${i < partner.xp ? "on" : ""}"></i>`).join("");
+    const msg = stage === 3 ? "進化しきった！明日、新しい相棒に出会えるかも" :
+      `あと${next - partner.xp}回QRを読むと${stage === 1 ? "生まれる" : "進化する"}…！`;
+    box.innerHTML = `<div class="partner-art">${art(p, stage)}</div>
+      <div class="partner-body"><p class="partner-label">相棒 ${growth && growth.gained ? "<b>なかよし度 +1</b>" : ""}</p>
+      <p class="partner-name"></p><div class="dots">${dots}</div><p class="partner-msg"></p></div>`;
+    box.querySelector(".partner-name").textContent = nameOf(p, stage);
+    box.querySelector(".partner-msg").textContent = msg;
+    box.hidden = false;
+    box.onclick = () => makeWallpaper(p, null, stage);
+  }
+
+  // 進化の演出
+  function playEvolution(growth) {
+    const p = productById(growth.id);
+    const ov = $("evolve");
+    const stageEl = ov.querySelector(".evolve-art");
+    const text = ov.querySelector(".evolve-text");
+    const btns = ov.querySelector(".evolve-btns");
+    btns.hidden = true;
+    ov.hidden = false;
+    if (growth.joined && !growth.evolved) {
+      stageEl.innerHTML = art(p, 1);
+      stageEl.className = "evolve-art pop";
+      text.textContent = `${nameOf(p, 1)}が相棒になった！毎日QRを読むと育つよ`;
+      btns.hidden = false;
+      return;
+    }
+    stageEl.innerHTML = art(p, growth.from);
+    stageEl.className = "evolve-art";
+    text.textContent = `おや…？ ${nameOf(p, growth.from)}のようすが…！`;
+    setTimeout(() => { stageEl.className = "evolve-art flicker"; }, 900);
+    setTimeout(() => {
+      stageEl.innerHTML = art(p, growth.to);
+      stageEl.className = "evolve-art pop";
+      if (navigator.vibrate) navigator.vibrate([40, 60, 120]);
+      text.textContent = `おめでとう！ ${nameOf(p, growth.from)}は ${nameOf(p, growth.to)}に${growth.to === 2 ? "生まれた" : "進化した"}！`;
+      btns.hidden = false;
+      ov.querySelector("[data-act=wall]").onclick = () => makeWallpaper(p, null, growth.to);
+    }, 3200);
   }
 
   function pokeChara() {
@@ -294,7 +399,7 @@
     halloween: ["#3a1f4f", "#e8701c"],
     christmas: ["#1f5a34", "#c8352e"],
   };
-  async function makeWallpaper(p, fortune) {
+  async function makeWallpaper(p, fortune, stage = 1) {
     try { await document.fonts.ready; } catch { /* ignore */ }
     const W = 1170, H = 2532;
     const cv = document.createElement("canvas");
@@ -312,7 +417,8 @@
     // うすい柄（キャラの絵文字を散らす）
     g.globalAlpha = dark ? 0.16 : 0.12;
     g.font = "90px serif"; g.textAlign = "center"; g.textBaseline = "middle";
-    const img = await artImage(p);
+    const img = await artImage(p, stage);
+    const chara = nameOf(p, stage);
     for (let y = 60, row = 0; y < H; y += 190, row++) {
       for (let x = row % 2 ? 95 : 0; x < W + 100; x += 190) {
         if (img) g.drawImage(img, x - 60, y - 60, 120, 120); else g.fillText(p.emoji, x, y);
@@ -342,8 +448,8 @@
     const soft = dark ? "rgba(255,255,255,.85)" : "#8a6a58";
     g.fillStyle = ink;
     let size = 96;
-    do { g.font = font(900, size); size -= 4; } while (g.measureText(p.chara).width > W - 120 && size > 40);
-    g.fillText(p.chara, W / 2, cy + 450);
+    do { g.font = font(900, size); size -= 4; } while (g.measureText(chara).width > W - 120 && size > 40);
+    g.fillText(chara, W / 2, cy + 450);
     g.fillStyle = soft; g.font = font(700, 44);
     g.fillText(productLabel(p), W / 2, cy + 540);
     if (fortune) {
@@ -351,7 +457,7 @@
       g.fillText(`${fortune.date.replace(/-/g, ".")} の運勢　${fortune.rank}`, W / 2, cy + 640);
     }
     g.font = font(500, 42); g.fillStyle = soft;
-    wrapText(g, p.fortune, W / 2, cy + 720, 900, 64);
+    wrapText(g, fortune ? p.fortune : descOf(p, stage) || p.fortune, W / 2, cy + 720, 900, 64);
 
     g.font = font(900, 46); g.fillStyle = ink;
     g.fillText(C.shopName, W / 2, H - 330);
@@ -360,7 +466,7 @@
     g.textBaseline = "alphabetic";
 
     const blob = await new Promise((r) => cv.toBlob(r, "image/png"));
-    const name = `ririo-${p.id}.png`;
+    const name = `ririo-${p.id}-${stage}.png`;
     const file = new File([blob], name, { type: "image/png" });
     try {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -376,7 +482,7 @@
     const f = store.get("today", null);
     if (!f) return;
     $("shareCard").disabled = true;
-    try { await makeWallpaper(productById(f.productId), f); } finally { $("shareCard").disabled = false; }
+    try { await makeWallpaper(productById(f.productId), f, f.stage || 1); } finally { $("shareCard").disabled = false; }
   }
   function wrapText(g, text, x, y, maxW, lh) {
     let line = "";
@@ -818,6 +924,7 @@
     $("review").addEventListener("input", updateCount);
     $("copyOpen").addEventListener("click", copyAndOpen);
     $("backToResult").addEventListener("click", () => show("screenResult"));
+    $("evolve").querySelector("[data-act=close]").addEventListener("click", () => { $("evolve").hidden = true; });
 
     // 今日すでに割っていたら結果から
     const today = store.get("today", null);

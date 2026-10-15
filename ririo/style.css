@@ -207,6 +207,37 @@ dialog h2 { margin: 0; font-size: 20px; }
 }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 
+/* ---------- partner / evolve ---------- */
+.partner {
+  display: flex; gap: 12px; align-items: center; width: 100%; margin-top: 12px; padding: 12px 14px; text-align: left;
+  background: var(--paper); border: 2px solid var(--accent); border-radius: 18px;
+}
+.partner-art { flex: none; width: 72px; height: 72px; }
+.partner-art svg { width: 72px; height: 72px; display: block; }
+.partner-body { flex: 1; min-width: 0; }
+.partner-label { margin: 0; font-size: 12px; color: var(--ink-soft); font-weight: 700; }
+.partner-label b { color: var(--accent); margin-left: 6px; }
+.partner-name { margin: 0; font-size: 17px; font-weight: 900; }
+.partner-msg { margin: 2px 0 0; font-size: 12px; color: var(--ink-soft); }
+.dots { display: flex; gap: 4px; margin-top: 4px; }
+.dots i { width: 14px; height: 14px; border-radius: 50%; background: var(--line); }
+.dots i.on { background: var(--accent); }
+.dots i:nth-child(3), .dots i:nth-child(7) { box-shadow: 0 0 0 2px var(--gold); }
+.evolve {
+  position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px 16px; background: radial-gradient(circle, #fffdf8 0%, #fbe3c4 60%, #f3c58e 100%); text-align: center;
+}
+.evolve-art { width: 220px; height: 220px; }
+.evolve-art svg { width: 100%; height: 100%; }
+.evolve-art.flicker { animation: flicker .25s steps(2) 9; }
+.evolve-art.flicker svg { filter: brightness(0) invert(1) drop-shadow(0 0 18px #fff); }
+.evolve-art.pop { animation: pop .6s ease; }
+.evolve-text { font-size: 18px; font-weight: 900; max-width: 320px; }
+.evolve-btns { width: 100%; max-width: 360px; }
+.zk-line { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.zk-line-name { grid-column: 1 / -1; margin: 4px 0 -4px; text-align: left; font-size: 11px; color: var(--ink-soft); }
+@keyframes flicker { 50% { opacity: .2; transform: scale(1.06); } }
+
 /* ---------- season ---------- */
 .season-banner {
   display: inline-block; margin: 6px 0 0; padding: 4px 14px; border-radius: 999px;

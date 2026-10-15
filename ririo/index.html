@@ -73,6 +73,8 @@
         <p class="new-badge" id="newBadge" hidden>図鑑に新しく登録されました！</p>
       </div>
 
+      <button class="partner" id="partner" type="button" hidden aria-label="相棒の待ち受け画像をもらう"></button>
+
       <button class="primary-btn" id="toSurvey" type="button">占いの答え合わせをする →</button>
       <p class="note">3問こたえると「くわしい運勢」がひらきます</p>
       <div class="row">
@@ -122,10 +124,21 @@
     <button class="ghost-btn" id="closeZukan" type="button">とじる</button>
   </dialog>
 
+  <!-- 進化の演出 -->
+  <div class="evolve" id="evolve" hidden role="dialog" aria-live="polite">
+    <div class="evolve-art"></div>
+    <p class="evolve-text"></p>
+    <div class="evolve-btns" hidden>
+      <button class="primary-btn" type="button" data-act="wall">📱 待ち受け画像をもらう</button>
+      <button class="ghost-btn" type="button" data-act="close">とじる</button>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="config.js"></script>
   <script src="chara.js"></script>
+  <script src="evolve.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
