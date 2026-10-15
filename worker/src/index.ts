@@ -142,16 +142,19 @@ function describe(ctx: SurveyContext): string {
 
 async function ask(env: Env, system: string, userText: string, schema: Record<string, unknown>): Promise<unknown | null> {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const model = env.MODEL || "claude-haiku-5-5";
+  // 安全判定で断られたときに別モデルで自動的にやり直す設定は、対応しているモデルだけで使う（Haiku は非対応）
+  const fallback = /^claude-(opus-5|sonnet-5-5|fable-5)/.test(model)
+    ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }
+    : {};
   const response = await client.beta.messages.create({
-    model: env.MODEL || "claude-opus-5-5",
+    model,
     max_tokens: 2000,
     system,
     messages: [{ role: "user", content: userText }],
     // お客さんを待たせないよう、考える量は少なめに
     output_config: { effort: "low", format: { type: "json_schema", schema } },
-    // 安全判定で断られたときに、別モデルで自動的にやり直す
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
+    ...fallback,
   });
   if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") return null;
   const text = response.content.find((b) => b.type === "text");
