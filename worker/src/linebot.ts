@@ -80,7 +80,7 @@ async function displayName(env: Env, userId: string): Promise<string> {
   try { const r = await lineApi(env, `/profile/${userId}`); return r.ok ? String(((await r.json()) as { displayName?: string }).displayName || "") : ""; } catch { return ""; }
 }
 
-const QUICK = ["今月の営業日", "アクセス", "お菓子教室について", "スタッフと話したい"];
+const QUICK = ["今月の営業日", "自販機のお菓子", "アクセス", "お菓子教室について", "スタッフと話したい"];
 
 // ---------- 営業日（ホームページと同じデータベース） ----------
 interface Day { date: string; is_open: boolean; open_time: string | null; close_time: string | null; note: string | null }
@@ -123,19 +123,40 @@ function monthScheduleReply(days: Day[] | null): string {
 }
 
 // ---------- AI ----------
-const BOT_SYSTEM = (today: string, days: string) => `あなたは${SHOP_NAME}（宮城県多賀城市のお菓子屋さん＆お菓子教室）の公式LINEで、お客さまに返信するアシスタントです。
+// ---------- 自動販売機のラインナップ（口コミページの vending.json と同じもの） ----------
+const VENDING_URL = "https://gbp.ai-mottainai.jp/ririo/vending.json";
+interface VendingItem { no: number; name: string; price: number; desc: string }
+async function vendingText(): Promise<string> {
+  try {
+    const r = await fetch(VENDING_URL, { cf: { cacheTtl: 300 } } as RequestInit);
+    if (!r.ok) throw new Error(String(r.status));
+    const j = (await r.json()) as { updated?: string; items?: VendingItem[] };
+    const items = (j.items || []).slice(0, 30);
+    if (!items.length) throw new Error("empty");
+    return `（${j.updated || ""} 時点。売り切れや入れ替えがあることもある）\n` +
+      items.map((v) => `${v.no}. ${v.name} ${v.price}円${v.desc ? `：${v.desc}` : ""}`).join("\n");
+  } catch {
+    return "（ラインナップを読み込めませんでした。中身は季節で変わるとだけ伝える）";
+  }
+}
+
+const BOT_SYSTEM = (today: string, days: string, vending: string) => `あなたは${SHOP_NAME}（宮城県多賀城市のお菓子屋さん＆お菓子教室）の公式LINEで、お客さまに返信するアシスタントです。
 今日は ${today} です。
 
 <お店の情報>
 ${SHOP_INFO}
 </お店の情報>
 
+<自動販売機のラインナップ>
+${vending}
+</自動販売機のラインナップ>
+
 <営業日（今月・来月）>
 ${days}
 </営業日>
 
 返信のルール:
-- 上の情報に書いてあることだけで答える。書いていないこと（在庫、当日の品ぞろえ、商品の値段、アレルギーの可否、取り置き、配送など）は推測で答えない。
+- 上の情報に書いてあることだけで答える。書いていないこと（在庫や売り切れ、店頭の当日の品ぞろえ、自販機以外の商品の値段、アレルギーの可否、取り置き、配送など）は推測で答えない。
 - やさしく丁寧な話し言葉で、短く（200文字くらいまで）。絵文字は使っても1つまで。URLは必要なときだけ1つ。
 - 次の場合は handoff を true にして、担当者に引き継ぐ:
   ・お菓子教室の申し込み、日程の相談、体験の希望（料金・内容の質問に答えるだけなら false でよい。申し込みは予約フォームも案内する）
@@ -250,7 +271,7 @@ async function handleEvent(env: Env, e: LineEvent): Promise<void> {
 
   // AIの返事を待つあいだ「…」を出す
   lineApi(env, "/chat/loading/start", { chatId: userId, loadingSeconds: 10 }).catch(() => {});
-  const days = await schedule(env);
+  const [days, vending] = await Promise.all([schedule(env), vendingText()]);
   if (/^今月の営業日/.test(msg.trim())) {
     chat.history.push({ role: "user", text: msg });
     const out = monthScheduleReply(days);
@@ -266,7 +287,7 @@ async function handleEvent(env: Env, e: LineEvent): Promise<void> {
   const userText = `${convo ? `<これまでの会話>\n${convo}\n</これまでの会話>\n\n` : ""}<お客さまの新しいメッセージ>\n${msg.slice(0, 1000)}\n</お客さまの新しいメッセージ>`;
   type BotOut = { reply: string; handoff: boolean; summary: string };
   let out: BotOut | null = null;
-  try { out = (await ask(env, BOT_SYSTEM(today, scheduleText(days)), userText, BOT_SCHEMA)) as BotOut | null; } catch { out = null; }
+  try { out = (await ask(env, BOT_SYSTEM(today, scheduleText(days), vending), userText, BOT_SCHEMA)) as BotOut | null; } catch { out = null; }
   if (!out || !out.reply) out = { reply: "お問い合わせありがとうございます。担当者が確認して、改めてご連絡いたします。", handoff: true, summary: "AIが返信できませんでした" };
 
   chat.history.push({ role: "user", text: msg }, { role: "assistant", text: out.reply });
