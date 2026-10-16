@@ -323,3 +323,5 @@ body.theme-christmas .season-banner { background: linear-gradient(90deg, #2f6b3a
 .consent[hidden] { display: none; }
 .consent input { flex: none; width: 20px; height: 20px; margin-top: 1px; accent-color: var(--accent); }
 .consent small { display: block; margin-top: 2px; color: var(--ink-soft); font-size: 11px; }
+.chip-group { flex-basis: 100%; margin: 6px 0 -2px; font-size: 12px; font-weight: 700; color: var(--ink-soft); text-align: left; }
+.chip-group:first-child { margin-top: 0; }

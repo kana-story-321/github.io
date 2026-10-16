@@ -83,7 +83,9 @@
 
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const productById = (id) => C.products.find((p) => p.id === id);
-  const productByName = (name) => C.products.find((p) => p.name === name);
+  // 自動販売機の今のラインナップ（vending.json）。商品の選択肢と、食感・味の選択肢に使う
+  let VENDING = [];
+  const productByName = (name) => VENDING.find((v) => v.name === name) || C.products.find((p) => p.name === name);
 
   // 文章の言い回しをセッション内で固定する（答えるたびに文がガラッと変わらないように）
   const seed = Math.floor(Math.random() * 1e6);
@@ -572,9 +574,15 @@
   const QUESTIONS = [
     { id: "products", type: "single", title: () => "答え合わせ！今日食べた（買った）のはどれ？", sub: "いくつか買った人は、いちばん印象に残ったものを1つ",
       options: () => {
+        const preset = productById(params.get("p"));
+        if (VENDING.length) {
+          // 自販機のラインナップと、お店のお菓子に分けて出す（「§」で始まるものは見出し）
+          const shop = C.products.filter((p) => !p.seasons && !VENDING.some((v) => v.name === p.name)).map((p) => p.name);
+          if (preset && !VENDING.some((v) => v.name === preset.name) && !shop.includes(preset.name)) shop.unshift(preset.name);
+          return ["§自動販売機", ...VENDING.map((v) => v.name), "§お店のお菓子", ...shop];
+        }
         // 今の季節の商品だけ出す（シールのQRで来た商品は季節外でも出す）
         const list = [...activeProducts.filter((p) => p.seasons), ...activeProducts.filter((p) => !p.seasons)]; // 季節ものを先頭に
-        const preset = productById(params.get("p"));
         if (preset && !list.includes(preset)) list.push(preset);
         return list.map((p) => p.name);
       } },
@@ -714,6 +722,12 @@
     const chipEls = [];
     let sent = false;
     for (const o of options) {
+      if (o.startsWith("§")) {
+        const h = document.createElement("p");
+        h.className = "chip-group"; h.textContent = o.slice(1);
+        chips.appendChild(h);
+        continue;
+      }
       const b = document.createElement("button");
       b.type = "button"; b.className = "chip" + (o === OTHER ? " other" : ""); b.textContent = o;
       b.addEventListener("click", () => {
@@ -1326,7 +1340,17 @@
     document.querySelectorAll(".line-btn").forEach((a) => { if (line.friend) a.hidden = true; });
   }
 
+  async function loadVending() {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    try {
+      const res = await fetch("vending.json", { cache: "no-cache", signal: ctrl.signal });
+      if (res.ok) VENDING = ((await res.json()).items || []).filter((v) => v && v.name);
+    } catch { VENDING = []; } finally { clearTimeout(timer); }
+  }
+
   async function start() {
+    await loadVending();
     if (C.liffId && !params.has("web")) {
       try { if ((await setupLiff()) === "redirect") return; } catch { /* LINEが使えなくても、そのまま遊べる */ }
     }
