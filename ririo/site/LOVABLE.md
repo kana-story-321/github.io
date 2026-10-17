@@ -42,3 +42,16 @@ GET https://gbp-api.ai-mottainai.jp/reviews?limit=12
 
 - ブラウザで https://gbp-api.ai-mottainai.jp/reviews を開くと、今掲載中の口コミがJSONで見られます。
 - まだ1件も承認していないときは `{"reviews":[]}` です（ホームページにはセクションが出ません）。
+
+## アクセス欄に道順の動画を入れる
+
+下の枠の中を Lovable のチャットに貼ってください。
+
+```
+アクセスセクション（id="access"）に、道順の動画を追加してください。
+- 動画：https://gbp.ai-mottainai.jp/ririo/access/access.mp4
+- サムネイル（poster）：https://gbp.ai-mottainai.jp/ririo/access/access-poster.jpg
+- <video controls playsinline muted preload="metadata"> で表示。縦長の動画なので、スマホでは横幅いっぱい、PCでは幅360pxくらいで中央に
+- 角を丸くして、サイトの雰囲気に合わせる
+- 動画の下に「笠上トンネルには入らず、手前の交差点を左へ。坂を上った先です。」と一文
+```
