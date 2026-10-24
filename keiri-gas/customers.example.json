@@ -1,0 +1,14 @@
+[
+  {
+    "name": "テスト用",
+    "group": "test",
+    "scriptId": "管理シートの 拡張機能 → Apps Script → プロジェクトの設定 → スクリプトID",
+    "deploymentId": "デプロイ → デプロイを管理 → ウェブアプリのデプロイID（AKfy…）"
+  },
+  {
+    "name": "山田デザイン事務所",
+    "group": "pilot",
+    "scriptId": "",
+    "deploymentId": ""
+  }
+]

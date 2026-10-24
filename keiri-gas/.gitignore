@@ -1,0 +1,4 @@
+# お客様の一覧とclaspの作業ファイルは、リポジトリに入れない
+customers.json
+.clasp.json
+.clasprc.json

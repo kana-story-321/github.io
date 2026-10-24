@@ -7,6 +7,7 @@ Googleビジネスプロフィール（GBP）の口コミを集めるための�
 | `ririo/` | Sweet Season ririo のおみくじクッキー → https://gbp.ai-mottainai.jp/ririo/ |
 | `worker/` | AI中継サーバー（全店共通・任意）。Claude APIキーをブラウザに出さないために使います |
 | `index.html` | 一覧ページ |
+| `keiri-gas/` | 経理アシスタント（個人事業主向けのGAS）。サイトには公開しない（`_config.yml` で除外）。使い方は `keiri-gas/README.md` |
 
 お店を増やすときは、`ririo/` をコピーしてフォルダ名を変え、`config.js` を書き換え、`index.html` の一覧に追加します。
 

@@ -1,0 +1,12 @@
+# GitHub Pages（Jekyll）の設定。サイトに出さないフォルダを指定する
+# keiri-gas/ は経理アシスタント（GAS）のコードと運用手順なので、gbp.ai-mottainai.jp では公開しない
+# （exclude を書くと既定の除外が置き換わるため、既定の分も並べている）
+exclude:
+  - keiri-gas
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
