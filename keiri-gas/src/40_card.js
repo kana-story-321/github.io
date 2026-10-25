@@ -326,6 +326,8 @@ function buildMatchSheet_(y) {
     file: String(r[COL('保存ファイル') - 1] || ''),
     item: String(r[COL('品名') - 1] || '').replace(/^'/, ''),
     biz: String(r[COL('事業で使えそうか') - 1] || ''),
+    breakdown: String(r[COL('内訳（品目・金額・区分）') - 1] || '').replace(/^'/, ''),
+    bizAmount: numOrBlank_(r[COL('事業の品の金額') - 1]),
     msgId: String(r[COL('Message-ID') - 1] || ''),
     check: String(r[COL('チェック') - 1] || ''),
     memo: String(r[COL('メモ') - 1] || ''),
@@ -349,7 +351,8 @@ function buildMatchSheet_(y) {
       m ? m.r.date : '', m ? safeCell_(m.r.store) : '', m ? m.r.amount : '', m ? m.r.currency : '', m ? m.r.docType : '', m ? m.r.file : '', memo]);
     occ[c.key] = (occ[c.key] || 0) + 1;
     items.push({ key: 'card:' + c.key + '#' + occ[c.key], date: c.date, store: c.desc, amount: c.amount, pay: c.card, receipt: status,
-      file: m ? m.r.file : '', item: m ? m.r.item : '', hint: m ? m.r.biz : '', receiptKey: m ? m.r.rkey : '' });
+      file: m ? m.r.file : '', item: m ? (m.r.breakdown || m.r.item) : '', hint: m ? m.r.biz : '', receiptKey: m ? m.r.rkey : '',
+      bizAmount: m ? m.r.bizAmount : '', receiptTotal: m ? m.r.amount : '' });
   });
 
   // 台帳にあるのに、カード明細に見つからない領収書（カード以外で払ったもの・取り込んでいないカードのもの）
@@ -358,7 +361,8 @@ function buildMatchSheet_(y) {
     if (r.check.indexOf('同じ注文番号の記録がすでにあります') >= 0) return;   // 注文確認と領収書など、同じ支払いの2通目は仕分けに出さない
     const yen = r.currency === 'JPY';
     items.push({ key: r.rkey, date: r.date, store: r.store, amount: yen ? r.amount : '', pay: r.payment || 'カード以外',
-      receipt: 'カード以外で支払い（領収書あり）' + (yen ? '' : '・' + r.currency + ' ' + r.amount), file: r.file, item: r.item, hint: r.biz, receiptKey: '' });
+      receipt: 'カード以外で支払い（領収書あり）' + (yen ? '' : '・' + r.currency + ' ' + r.amount), file: r.file, item: r.breakdown || r.item, hint: r.biz, receiptKey: '',
+      bizAmount: yen ? r.bizAmount : '', receiptTotal: r.amount });
   });
 
   const sh = getOrCreateSheet_(ss, SHEET_MATCH);

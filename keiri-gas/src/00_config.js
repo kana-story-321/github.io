@@ -16,13 +16,19 @@
  * 画面の操作はスプレッドシートのメニュー「経理」から行う。
  */
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const TZ = 'Asia/Tokyo';
 const PROPS = PropertiesService.getScriptProperties();
 
 // AIのモデル。版を固定する（上げるときは、テスト用の環境で読み取り結果を確かめてから全員に配る）
 const MODEL_NAME = 'gemini-2.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
+// AIが答える前に「考える」量（トークン）。考えた分も料金がかかる
+//   読み取り（メール・レシート・カード明細）は決まった項目を写すだけなので 0（考えない）
+//   経費の仕分けは判断が要るので少しだけ考えさせる
+// ※ モデルを変えるときは、0 が使えるか確かめる（使えないモデルがある）
+const THINK_READ = 0;
+const THINK_SHIWAKE = 1024;
 
 // 管理シートのタブ
 const SH_SETTINGS = '設定';

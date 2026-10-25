@@ -513,6 +513,8 @@ function buildLedgerRow_(info, msg, files, source, extraCheck) {
   if (numOrBlank_(info.total) === '') checks.push(info.total_invalid ? '金額の読み取りがおかしいため空にしています' : '金額が読み取れていません');
   if (!info.date) checks.push('取引日が読み取れず、受け取った日にしています');
   if (!info.store) checks.push('取引先が読み取れていません');
+  const bd = itemBreakdown_(info);
+  checks.push.apply(checks, bd.checks);
   if (files.note) checks.push(files.note);
   if (extraCheck) checks.push(extraCheck);
   const t = safeCell_;
@@ -542,6 +544,8 @@ function buildLedgerRow_(info, msg, files, source, extraCheck) {
   set('元メール（eml）', files.eml);
   set('チェック', checks.join('／'));
   set('登録番号（インボイス）', info.invoice_no);
+  set('内訳（品目・金額・区分）', t(bd.text));
+  set('事業の品の金額', bd.bizAmount);
   return row;
 }
 
@@ -572,6 +576,8 @@ ${businessProfile_()}
 - total は合計金額（税込）の数字だけ。返金・取消のときも金額は正の数で書き、doc_type を「返金・取消」にする。currency は通貨（JPY、USD など3文字）。
 - ポイントで払った分は points_used、それ以外（カード・PayPay残高・銀行など）で払った分は other_paid。分からなければ null。
 - invoice_no は適格請求書発行事業者の登録番号（T＋13桁）。書いていなければ null。
+- items には、注文した品を1つずつ全部書く（まとめない）。price はその品の金額（数量分の合計。書いてあるとおり）。送料・手数料も1行として書く。
+- business_use は、上の「この人の事業」に照らして品ごとに判断する（同じ注文に事業の品と生活の品が混ざることがある）。
 - 書いていないことは推測せず null にする。
 
 # 分類（category はこの中から1つ）
@@ -593,7 +599,7 @@ ${CATEGORIES.join('／')}
   "other_paid": 数字 または null,
   "memo": "補足（任意）",
   "items": [
-    { "name": "品名（具体的に）", "category": "分類", "business_use": "事業で使いそう／個人っぽい／どちらとも言えない" }
+    { "name": "品名（具体的に）", "price": 数字 または null, "category": "分類", "business_use": "事業で使いそう／個人っぽい／どちらとも言えない" }
   ]
 }
 

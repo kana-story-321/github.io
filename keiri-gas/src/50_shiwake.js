@@ -2,6 +2,7 @@
 // 経費仕分け（カード突き合わせの続きで動く）
 //  - カード明細の全件と、カード以外で払った領収書を、その年の帳簿の「経費仕分け」タブに1行ずつ並べる
 //  - 1行ずつ、区分（事業の経費／立替／個人／要確認）・勘定科目・事業の割合・理由を書く
+//  - レシートに事業の品と個人の品が混ざっていれば、事業の品の分だけを「AIの事業分の金額」に出す（経費になる金額はこちらを使う）
 //      1. まず管理シートの「仕分けルール」（○○は事業の経費、など）を当てはめる
 //      2. ルールに当てはまらないものは、Gemini が判定する（お客様がチェックした行を見本にする）
 //  - お客様は「確認」にチェックを入れるだけ。AIと違うときだけ「〜（変える時だけ）」を選ぶ
@@ -11,7 +12,7 @@
 
 const SHEET_SHIWAKE = '経費仕分け';
 const SHIWAKE_HEADERS = ['取引日', '支払先', '金額（円）', '支払い方法', '領収書', '領収書のファイル', '品名',
-  'AIの区分', 'AIの勘定科目', 'AIの事業割合(%)', 'AIの理由',
+  'AIの区分', 'AIの勘定科目', 'AIの事業割合(%)', 'AIの事業分の金額（円）', 'AIの理由',
   '確認', '区分（変える時だけ）', '勘定科目（変える時だけ）', '事業割合（変える時だけ）',
   '確定した区分', '確定した勘定科目', '経費になる金額', 'メモ', 'キー'];
 const SC = name => SHIWAKE_HEADERS.indexOf(name) + 1;   // 列番号（1から）
@@ -155,7 +156,7 @@ function updateShiwakeCore_(y, items) {
       if (DEADLINE && Date.now() + 60000 > DEADLINE) { left = forAi.length - i; break; }
       const groups = [];
       for (let j = i; j < Math.min(forAi.length, i + SHIWAKE_BATCH * SHIWAKE_PARALLEL); j += SHIWAKE_BATCH) groups.push(forAi.slice(j, j + SHIWAKE_BATCH));
-      const responses = fetchGeminiAll_(groups.map(g => geminiRequest_([{ text: shiwakePrompt_(g, examples) }])));
+      const responses = fetchGeminiAll_(groups.map(g => geminiRequest_([{ text: shiwakePrompt_(g, examples) }], THINK_SHIWAKE)));
       groups.forEach((g, k) => {
         const ans = readGeminiResponse_(responses[k]);
         if (!ans || !Array.isArray(ans.results)) { left += g.length; return; }   // 返事そのものが読めない（混雑など）：次回もう一度
@@ -184,7 +185,13 @@ function updateShiwakeCore_(y, items) {
     row[SC('AIの区分') - 1] = j.kubun;
     row[SC('AIの勘定科目') - 1] = j.kamoku;
     row[SC('AIの事業割合(%)') - 1] = j.ratio;
-    row[SC('AIの理由') - 1] = safeCell_(j.reason);
+    // 事業の品と個人の品が混ざったレシート：事業の品の分だけを経費の候補にする（カードでポイント併用などで金額が違えば、割合で直す）
+    const mixed = x.bizAmount !== '' && x.bizAmount !== undefined && (j.kubun === '事業の経費' || j.kubun === '要確認') && typeof x.amount === 'number';
+    if (mixed) {
+      const part = x.receiptTotal && Number(x.receiptTotal) !== x.amount ? Math.round(x.amount * x.bizAmount / Number(x.receiptTotal)) : x.bizAmount;
+      row[SC('AIの事業分の金額（円）') - 1] = Math.min(part, x.amount);
+    }
+    row[SC('AIの理由') - 1] = safeCell_(j.reason + (mixed ? '／個人の品を除いた金額で計上' : ''));
     row[SC('確認') - 1] = false;
     row[SC('メモ') - 1] = memo;
     row[SC('キー') - 1] = x.key;
@@ -226,7 +233,8 @@ function setShiwakeFormulas_(sh, start, n) {
   const f = [
     `=IF(${R('確認')}=TRUE,IF(${R('区分（変える時だけ）')}<>"",${R('区分（変える時だけ）')},${R('AIの区分')}),"")`,
     `=IF(${R('確認')}=TRUE,IF(${R('勘定科目（変える時だけ）')}<>"",${R('勘定科目（変える時だけ）')},${R('AIの勘定科目')}),"")`,
-    `=IF(AND(${R('確定した区分')}="事業の経費",ISNUMBER(${R('金額（円）')})),ROUND(${R('金額（円）')}*IF(${R('事業割合（変える時だけ）')}<>"",${R('事業割合（変える時だけ）')},IF(${R('AIの事業割合(%)')}<>"",${R('AIの事業割合(%)')},100))/100),"")`
+    // 経費になる金額：①事業割合を変えたらその割合 ②品目で分けた「AIの事業分の金額」があればそれ ③AIの事業割合
+    `=IF(AND(${R('確定した区分')}="事業の経費",ISNUMBER(${R('金額（円）')})),IF(${R('事業割合（変える時だけ）')}<>"",ROUND(${R('金額（円）')}*${R('事業割合（変える時だけ）')}/100),IF(ISNUMBER(${R('AIの事業分の金額（円）')}),${R('AIの事業分の金額（円）')},ROUND(${R('金額（円）')}*IF(${R('AIの事業割合(%)')}<>"",${R('AIの事業割合(%)')},100)/100))),"")`
   ];
   sh.getRange(start, SC('確定した区分'), n, 3).setFormulasR1C1(new Array(n).fill(f));
 }
@@ -309,6 +317,10 @@ ${businessProfile_()}
 ${KAMOKU.join('、')}
 - 立替は「立替金」、個人は「事業主貸」。10万円以上のパソコン・機器は「工具器具備品」、10万円未満は「消耗品費」。
 - ソフト・クラウド・AIのサブスクの利用料、スマホ・ネットの料金は「通信費」。
+
+# 品目の内訳について
+- item に「品名 金額［事業］、品名 金額［個人］」のような内訳がある支払いは、事業の品と個人の品が1回の支払いに混ざっている。
+- 事業の品が1つでもあれば kubun は「事業の経費」にし、kamoku は事業の品に合わせる。個人の品の分は、システムが自動で経費から除く。
 
 # 事業割合（ratio）
 - 事業の経費・要確認なら、事業で使う割合（0〜100）。スマホ代・車・自宅の家賃や光熱費など私用もあるものは、事業の説明に合わせて 50 など。立替・個人は空でよい。

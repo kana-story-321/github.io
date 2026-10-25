@@ -80,7 +80,8 @@ function processPaperReceipts_(ctx, timeUp) {
         const row = buildLedgerRow_(p.info, fakeMsg, { main: f.getUrl(), attachments: [], date: p.date, eml: '', note: '' }, source, notes.filter(s => s).join('／'));
         if (placed.length > 1) row[COL('メモ') - 1] = safeCell_(`写真の中の${n + 1}枚目／全${placed.length}枚` + (p.info.memo ? '　' + p.info.memo : ''));
         (byYear[p.where.y.year] = byYear[p.where.y.year] || { ledger: ledger, rows: [] }).rows.push(row);
-        if (fromLine) ctx.lineResults.push(`${p.date.slice(5)} ${p.info.store || '取引先不明'} ${amountLabel_(p.info)}`);
+        const bizAmount = row[COL('事業の品の金額') - 1];
+        if (fromLine) ctx.lineResults.push(`${p.date.slice(5)} ${p.info.store || '取引先不明'} ${amountLabel_(p.info)}` + (bizAmount !== '' ? `（うち事業の品 ${bizAmount}円）` : ''));
       });
       Object.keys(byYear).forEach(k => {
         const b = byYear[k];
@@ -153,6 +154,9 @@ ${businessProfile_()}
 - total は合計金額（税込）の数字だけ。currency は通貨（JPY など3文字）。
 - date は取引日（YYYY/MM/DD）。領収書は支払日、請求書は請求日。和暦なら西暦に直す。
 - invoice_no は適格請求書発行事業者の登録番号（T＋13桁）。書いていなければ null。
+- items には、レシートに印字された品を1行ずつ全部書く（まとめない・省略しない）。price はその行の金額（数量分の合計。印字されているとおり）。値引きの行は、マイナスの金額で1行として書く。
+- business_use は、上の「この人の事業」に照らして品ごとに判断する（スーパーなどでは、仕事の品と生活の品が1枚に混ざることがある）。
+- 印字がかすれて読めない文字・数字は、推測で埋めずに null にする。
 - 支払い方法（現金・カード・電子マネーなど）が書いてあれば payment_method に書く。
 - 書いていないこと・読めないことは推測せず null にする。
 
@@ -177,7 +181,7 @@ ${CATEGORIES.join('／')}
       "other_paid": 数字 または null,
       "memo": "但し書き（「お品代として」「広告費として」など）があれば",
       "items": [
-        { "name": "品名", "category": "分類", "business_use": "事業で使いそう／個人っぽい／どちらとも言えない" }
+        { "name": "品名", "price": 数字 または null, "category": "分類", "business_use": "事業で使いそう／個人っぽい／どちらとも言えない" }
       ]
     }
   ]

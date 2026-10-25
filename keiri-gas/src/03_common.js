@@ -8,8 +8,9 @@ let DEADLINE = 0;   // この時刻を過ぎそうなら、待ち時間のある
 const LEDGER_HEADERS = [
   '取引日', '取引先', '金額', '通貨', '品名', '分類', '事業で使えそうか', '支払い方法', 'ポイント利用額', 'ポイント以外の支払額',
   '注文番号', '入手経路', '件名', '差出人', '受信日時', '保存ファイル', '添付ファイル', 'Message-ID', 'メールID', 'メモ',
-  '書類の種類', '元メール（eml）', 'チェック', '登録番号（インボイス）'
+  '書類の種類', '元メール（eml）', 'チェック', '登録番号（インボイス）', '内訳（品目・金額・区分）', '事業の品の金額'
 ];
+const ITEM_BIZ = '事業で使いそう', ITEM_PRIVATE = '個人っぽい', ITEM_UNSURE = 'どちらとも言えない';
 const COL = name => LEDGER_HEADERS.indexOf(name) + 1;   // 列番号（1から）
 
 const CATEGORIES = ['パソコン・機器', 'ソフト・サブスク', '本・勉強', '事務用品・消耗品', '通信', '交通・宿泊', '車', '飲食', '日用品・食品', '衣類・美容', '趣味・娯楽', 'ギフト・金券', '家賃・光熱費', '保険', '税金', 'その他'];
@@ -19,12 +20,15 @@ const DOC_TYPES = ['領収書', '注文確認', '請求書', '見積書', '契�
 // ==========================================
 // Gemini
 // ==========================================
-// 1件分のリクエスト（APIキーはURLではなくヘッダーで送る）
-function geminiRequest_(parts) {
+// 1件分のリクエスト（APIキーはURLではなくヘッダーで送る）。thinking：考える量（省略すると THINK_READ＝考えない）
+function geminiRequest_(parts, thinking) {
   return {
     url: GEMINI_URL, method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { 'x-goog-api-key': geminiKey_() },
-    payload: JSON.stringify({ contents: [{ parts: parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0 } })
+    payload: JSON.stringify({ contents: [{ parts: parts }], generationConfig: {
+      responseMimeType: 'application/json', temperature: 0,
+      thinkingConfig: { thinkingBudget: thinking === undefined ? THINK_READ : thinking }
+    } })
   };
 }
 
@@ -99,8 +103,42 @@ function validateInfo_(info) {
     memo: str(info.memo),
     items: (Array.isArray(info.items) ? info.items : [])
       .filter(it => it && typeof it === 'object')
-      .map(it => ({ name: str(it.name), category: str(it.category), business_use: str(it.business_use) }))
+      .map(it => ({ name: str(it.name), category: str(it.category), business_use: str(it.business_use), price: numOrBlank_(it.price) }))
   };
+}
+
+// 品目の内訳と、事業の品の金額を出す
+//   事業の品と個人の品が混ざっているときだけ「事業の品の金額」を出す（全部事業・全部個人なら空＝レシート全体で判断）
+//   レシートの品目の金額は税抜きのこともあるので、「事業の品の金額の割合」を合計金額（税込）に掛けて求める
+// 戻り値：{ text: 内訳の文, bizAmount: 数字か空, checks: チェック欄に書くこと }
+function itemBreakdown_(info) {
+  const items = info.items || [];
+  const tag = it => it.business_use === ITEM_BIZ ? '事業' : it.business_use === ITEM_PRIVATE ? '個人' : '不明';
+  const text = items.length < 2 ? '' :
+    items.map(it => `${it.name || '品名不明'}${it.price !== '' ? ' ' + it.price + '円' : ''}［${tag(it)}］`).join('、');
+  const out = { text: text, bizAmount: '', checks: [] };
+  const total = numOrBlank_(info.total);
+  if (items.length < 2 || total === '' || info.currency !== 'JPY') return out;
+  const priced = items.filter(it => it.price !== '');
+  const sum = list => list.reduce((a, it) => a + Number(it.price), 0);
+  // 読み取りの確かめ：品目の合計と合計金額が大きく違えば知らせる（税抜き表示なら最大10%ほど違うのは正常）
+  const mismatch = priced.length === items.length && sum(items) > 0 && (total < sum(items) * 0.95 || total > sum(items) * 1.12);
+  if (mismatch) out.checks.push(`品目の合計（${sum(items)}円）と合計金額（${total}円）が合いません。読み間違いがないか確認してください`);
+  const biz = items.filter(it => it.business_use === ITEM_BIZ);
+  if (biz.length === 0 || biz.length === items.length) return out;   // 混ざっていない
+  if (mismatch) {   // 読み間違いの可能性がある数字で計算しない
+    out.checks.push('事業の品と個人の品が混ざっていますが、金額が合わないため、事業の分は計算していません（事業割合を入れてください）');
+    return out;
+  }
+  if (priced.length !== items.length || sum(items) <= 0) {
+    out.checks.push('事業の品と個人の品が混ざっていますが、金額が読み取れない品があるため、事業の分を計算できませんでした');
+    return out;
+  }
+  out.bizAmount = Math.round(total * sum(biz) / sum(items));
+  const unsure = items.filter(it => tag(it) === '不明');
+  out.checks.push(`事業の品と個人の品が混ざっています（事業の分 ${out.bizAmount}円）` +
+    (unsure.length > 0 ? `。事業か個人か分からない品（${unsure.map(it => it.name).join('、')}）は個人に入れています` : ''));
+  return out;
 }
 
 // 事業の説明（「設定」タブ）。AIへの指示に入れる
