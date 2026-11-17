@@ -5,20 +5,285 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>GBP 口コミ施策｜もったいない.jp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
   <style>
-    body { margin: 0; background: #fbf3e6; color: #4a2f22; font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif; line-height: 1.7; }
-    main { max-width: 520px; margin: 0 auto; padding: 32px 16px; }
-    h1 { font-size: 20px; margin: 0 0 4px; }
-    p { margin: 0 0 16px; color: #8a6a58; font-size: 14px; }
-    a.shop { display: block; padding: 16px; background: #fffdf8; border: 1px solid #ecdcc6; border-radius: 16px; color: inherit; text-decoration: none; font-weight: 700; }
-    a.shop span { display: block; font-weight: 500; font-size: 13px; color: #8a6a58; }
+    :root {
+      --green: #2f4b3a;
+      --mat: #4b6149;
+      --cream: #f6ecc9;
+      --yellow: #ffdf4a;
+      --kraft: #cf9856;
+      --kraft-dark: #b57c3c;
+      --orange: #f26a1b;
+      --ink: #26201a;
+      --paper: #f4f0e6;
+      --display: "Dela Gothic One", "Hiragino Kaku Gothic StdN", "Hiragino Sans", sans-serif;
+      --body: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--green); color: var(--ink); font-family: var(--body); font-weight: 700; line-height: 1.7; overflow-x: hidden; }
+    img { max-width: 100%; display: block; }
+    a { color: inherit; }
+
+    /* 紙のざらつき（全体にうっすら重ねる） */
+    .grain { position: relative; }
+    .grain::after {
+      content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 5; opacity: .5; mix-blend-mode: multiply;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .15 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    .wrap { position: relative; z-index: 6; max-width: 560px; margin: 0 auto; padding: 0 20px; }
+
+    /* 切り抜きステッカー風のふち */
+    .sticker { filter: drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff) drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff) drop-shadow(0 6px 5px rgba(0,0,0,.35)); }
+
+    /* 黄色マーカーの字幕 */
+    .cap { display: inline-block; background: var(--yellow); color: var(--ink); font-weight: 900; font-size: 17px; line-height: 1.35; padding: 5px 12px; border-radius: 3px; box-shadow: 0 3px 0 rgba(0,0,0,.18); }
+
+    /* ちぎった紙のふち */
+    .tear { position: absolute; left: 0; right: 0; height: 34px; z-index: 7; pointer-events: none; }
+    .tear svg { width: 100%; height: 100%; display: block; }
+    .tear.top { top: -1px; }
+    .tear.bottom { bottom: -1px; transform: scaleY(-1); }
+
+    /* コマ撮りっぽいゆれ */
+    @keyframes jit { 0%,100% { transform: rotate(-2deg) translate(0,0); } 50% { transform: rotate(1.5deg) translate(1px,-2px); } }
+    @keyframes jit2 { 0%,100% { transform: rotate(3deg); } 50% { transform: rotate(-1deg) translateY(2px); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pop { 0% { transform: scale(0) rotate(-25deg); opacity: 0; } 60% { transform: scale(1.18) rotate(6deg); opacity: 1; } 100% { transform: scale(1) rotate(var(--r,0deg)); opacity: 1; } }
+    @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+
+    .reveal { opacity: 0; }
+    .in .reveal, .reveal.in { animation: pop .5s steps(6) both; animation-delay: var(--d, 0s); }
+
+    /* ── 1. ヒーロー：うずまき ── */
+    .hero { min-height: 100svh; background: var(--green); overflow: hidden; display: flex; align-items: center; padding: 72px 0 96px; }
+    .spiral { position: absolute; left: 50%; top: 46%; width: 240vmax; height: 240vmax; margin: -120vmax 0 0 -120vmax; animation: spin 40s linear infinite; }
+    .spiral path { fill: none; stroke: var(--cream); stroke-linecap: round; }
+    .hero h1 { font-family: var(--display); font-weight: 400; margin: 0; font-size: clamp(38px, 11.5vw, 64px); line-height: 1.22; letter-spacing: .01em; color: var(--yellow); -webkit-text-stroke: 10px var(--ink); paint-order: stroke fill; text-shadow: 0 6px 0 rgba(0,0,0,.35); transform: rotate(-3deg); }
+    .hero h1 em { font-style: normal; color: var(--orange); font-size: 1.22em; }
+    .hero h1 small { display: block; font-size: .5em; color: #fff; }
+    .hero .tag { margin: 26px 0 0; transform: rotate(-3deg); }
+    .hero .tag .cap { animation: jit 1s steps(1) infinite; }
+    .hero-stickers { position: relative; height: 230px; margin-top: 26px; }
+    .hero-stickers img { position: absolute; width: 46%; max-width: 220px; }
+    .hero-stickers .a { left: 25%; top: 0; animation: jit 1.2s steps(1) infinite; z-index: 2; }
+    .hero-stickers .b { left: -4%; top: 70px; width: 32%; animation: jit2 .9s steps(1) infinite; }
+    .hero-stickers .c { right: -4%; top: 50px; width: 34%; animation: jit2 1.1s steps(1) infinite .3s; }
+    .scroll { position: absolute; z-index: 8; left: 50%; bottom: 46px; margin-left: -22px; width: 44px; height: 44px; border-radius: 50%; background: var(--orange); color: #fff; display: grid; place-items: center; font-size: 20px; border: 3px solid #fff; box-shadow: 0 4px 0 rgba(0,0,0,.3); animation: bob 1.2s steps(2) infinite; text-decoration: none; }
+
+    /* ── 2. クラフト紙：悩み ── */
+    .kraft { background: var(--kraft); padding: 84px 0 96px; }
+    .kraft::before { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 60% at 20% 10%, rgba(255,255,255,.14), transparent 60%), radial-gradient(90% 50% at 90% 80%, rgba(90,50,10,.22), transparent 60%); }
+    .bubble { position: relative; display: inline-block; background: var(--paper); font-family: var(--display); font-weight: 400; font-size: 20px; line-height: 1.4; padding: 18px 26px; border-radius: 48% 52% 50% 50% / 58% 55% 45% 42%; box-shadow: 0 5px 0 rgba(0,0,0,.2); --r: -4deg; z-index: 3; }
+    .bubble::after { content: ""; position: absolute; left: 62%; bottom: -14px; border: 12px solid transparent; border-top-color: var(--paper); border-bottom: 0; transform: skewX(-20deg); }
+    .desk { position: relative; margin: -6px auto 0; max-width: 420px; }
+    .laptop { width: 100%; height: auto; }
+    .screen-items { position: absolute; left: 18%; right: 18%; top: 10%; height: 48%; }
+    .tile { position: absolute; width: 30%; aspect-ratio: 1; background: #fff; border-radius: 8px; display: grid; place-items: center; font-size: clamp(22px, 7vw, 34px); box-shadow: 0 4px 0 rgba(0,0,0,.25); outline: 2px dashed transparent; outline-offset: 4px; }
+    .in .tile { animation: pop .5s steps(6) both, sel 1.2s steps(1) both; animation-delay: var(--d), var(--d); }
+    @keyframes sel { 0%,70% { outline-color: #3b82f6; } 100% { outline-color: transparent; } }
+    .tile:nth-child(1) { left: 2%; top: 4%; --r: -6deg; --d: .5s; }
+    .tile:nth-child(2) { right: 4%; top: 0; --r: 5deg; --d: 1.1s; }
+    .tile:nth-child(3) { left: 14%; bottom: -8%; --r: 4deg; --d: 1.7s; }
+    .tile:nth-child(4) { right: 12%; bottom: -4%; --r: -8deg; --d: 2.3s; }
+    .notes { position: absolute; inset: 0; pointer-events: none; }
+    .note { position: absolute; width: 22%; aspect-ratio: 1; background: var(--paper); box-shadow: 0 3px 0 rgba(0,0,0,.2); }
+    .note.o { background: var(--orange); }
+    .kraft .caps { display: grid; gap: 12px; justify-items: center; margin-top: 30px; text-align: center; }
+    .kraft .caps .cap:nth-child(odd) { --r: -2deg; }
+    .kraft .caps .cap:nth-child(even) { --r: 1.5deg; }
+
+    /* ── 3. カッティングマット：3ステップ ── */
+    .mat { background-color: var(--mat); background-image: linear-gradient(rgba(255,255,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.16) 1px, transparent 1px), linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px); background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px; padding: 84px 0 110px; overflow: hidden; }
+    .mat h2 { font-family: var(--display); font-weight: 400; font-size: clamp(34px, 10vw, 54px); line-height: 1.2; margin: 0; color: #fff; text-shadow: 0 5px 0 rgba(0,0,0,.35); }
+    .mat h2 em { font-style: normal; color: var(--yellow); }
+    .plugs { position: relative; height: 84px; margin: 22px -20px 8px; }
+    .plug { position: absolute; top: 0; height: 84px; width: 54%; transition: transform .9s steps(7); }
+    .plug.l { left: 0; transform: translateX(-34%); }
+    .plug.r { right: 0; transform: translateX(34%); }
+    .in .plug { transform: none; }
+    .spark { position: absolute; left: 50%; top: 50%; width: 70px; height: 70px; margin: -35px 0 0 -35px; opacity: 0; }
+    .in .spark { animation: pop .4s steps(4) .9s both, spin 3s steps(8) 1.3s infinite; }
+    .steps { list-style: none; margin: 26px 0 0; padding: 0; display: grid; gap: 22px; }
+    .step { position: relative; background: var(--paper); border-radius: 6px; padding: 20px 18px 18px 74px; box-shadow: 0 6px 0 rgba(0,0,0,.28); }
+    .step:nth-child(1) { --r: -1.5deg; } .step:nth-child(2) { --r: 1.2deg; --d: .15s; } .step:nth-child(3) { --r: -1deg; --d: .3s; }
+    .step .num { font-style: normal; position: absolute; left: 14px; top: 50%; margin-top: -24px; width: 48px; height: 48px; border-radius: 50%; background: var(--orange); color: #fff; font-family: var(--display); font-weight: 400; font-size: 24px; display: grid; place-items: center; border: 3px solid #fff; box-shadow: 0 3px 0 rgba(0,0,0,.3); }
+    .step b { display: block; font-size: 19px; font-weight: 900; line-height: 1.4; }
+    .step span { display: block; font-size: 14px; color: #6a5a48; margin-top: 4px; }
+    .step::before { content: ""; position: absolute; top: -11px; left: 50%; width: 84px; height: 22px; margin-left: -42px; background: rgba(255,223,74,.85); transform: rotate(-3deg); box-shadow: 0 1px 0 rgba(0,0,0,.12); }
+
+    /* ── 4. お店 ── */
+    .shops { background: var(--yellow); padding: 84px 0 70px; overflow: hidden; }
+    .shops h2 { font-family: var(--display); font-weight: 400; font-size: clamp(30px, 9vw, 46px); line-height: 1.25; margin: 0 0 30px; color: var(--ink); }
+    .shops h2 em { font-style: normal; color: var(--orange); -webkit-text-stroke: 6px #fff; paint-order: stroke fill; }
+    a.shop { position: relative; display: block; background: var(--paper); border-radius: 8px; padding: 22px 20px 20px; text-decoration: none; box-shadow: 0 8px 0 var(--ink); border: 3px solid var(--ink); --r: -1.5deg; transition: translate .15s steps(2), box-shadow .15s steps(2); }
+    a.shop:hover, a.shop:focus-visible { translate: 0 4px; box-shadow: 0 4px 0 var(--ink); }
+    a.shop .chara { position: absolute; right: -14px; top: -58px; width: 124px; animation: jit 1.1s steps(1) infinite; }
+    a.shop .name { font-family: var(--display); font-weight: 400; font-size: 23px; line-height: 1.35; padding-right: 96px; }
+    a.shop .desc { font-size: 14px; color: #6a5a48; margin-top: 6px; }
+    a.shop .go { display: inline-block; margin-top: 16px; background: var(--orange); color: #fff; font-weight: 900; padding: 8px 18px; border-radius: 999px; border: 3px solid var(--ink); }
+    footer { background: var(--ink); color: var(--cream); text-align: center; font-size: 13px; padding: 26px 16px 34px; }
+
+    @media (min-width: 700px) {
+      .cap { font-size: 19px; }
+      .hero-stickers { height: 270px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; }
+      .plug.l, .plug.r { transform: none; }
+      .spark { opacity: 1; }
+    }
   </style>
 </head>
 <body>
-  <main>
-    <h1>GBP 口コミ施策</h1>
-    <p>もったいない.jp</p>
-    <a class="shop" href="ririo/">🍪 Sweet Season ririo<span>おみくじクッキー × 口コミ</span></a>
-  </main>
+
+  <!-- 1. ヒーロー -->
+  <header class="hero grain">
+    <svg class="spiral" viewBox="-100 -100 200 200" aria-hidden="true"><path id="spiralPath"/></svg>
+    <div class="wrap">
+      <h1><small>お店の口コミ、</small><em>おみくじ</em><br>クッキーで<br>育てます！</h1>
+      <p class="tag"><span class="cap">GBP 口コミ施策｜もったいない.jp</span></p>
+      <div class="hero-stickers" aria-hidden="true">
+        <img class="sticker b" src="ririo/img/chara/pudding-1.webp" alt="">
+        <img class="sticker a" src="ririo/img/chara/cookie-1.webp" alt="">
+        <img class="sticker c" src="ririo/img/chara/lemon-1.webp" alt="">
+      </div>
+    </div>
+    <a class="scroll" href="#why" aria-label="下へ">↓</a>
+    <div class="tear bottom" data-fill="#cf9856"></div>
+  </header>
+
+  <!-- 2. 悩み -->
+  <section class="kraft grain" id="why">
+    <div class="tear top" data-fill="#f4f0e6"></div>
+    <div class="wrap" data-watch>
+      <div class="bubble reveal">口コミ、<br>書いてほしいけど…</div>
+      <div class="desk">
+        <svg class="laptop sticker" viewBox="0 0 400 290" aria-hidden="true">
+          <rect x="58" y="10" width="284" height="186" rx="12" fill="#3a3a3c"/>
+          <rect x="70" y="22" width="260" height="162" rx="3" fill="#c9cbcc"/>
+          <path d="M22 262 58 196h284l36 66z" fill="#d5d6d8"/>
+          <path d="M76 206h248l18 34H58z" fill="#2c2c2e"/>
+          <rect x="160" y="244" width="80" height="12" rx="3" fill="#bfc0c3"/>
+          <rect x="18" y="262" width="364" height="14" rx="7" fill="#a9abae"/>
+        </svg>
+        <div class="screen-items" aria-hidden="true">
+          <div class="tile">⭐</div><div class="tile">💬</div><div class="tile">📍</div><div class="tile">📷</div>
+        </div>
+        <div class="notes" id="notes" aria-hidden="true"></div>
+      </div>
+      <div class="caps">
+        <span class="cap reveal" style="--d:.4s">お願いするのは、ちょっと気まずい。</span>
+        <span class="cap reveal" style="--d:1.4s">お客さんも、何を書けばいいか迷う。</span>
+        <span class="cap reveal" style="--d:2.6s">手が出ないですよね。</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 3ステップ -->
+  <section class="mat grain">
+    <div class="tear top" data-fill="#cf9856"></div>
+    <div class="wrap">
+      <h2 class="reveal" data-watch><em>3</em>ステップで完成</h2>
+      <div class="plugs" data-watch aria-hidden="true">
+        <svg class="plug l sticker" viewBox="0 0 220 84" preserveAspectRatio="xMaxYMid meet">
+          <path d="M0 42h120" stroke="#e9e7e1" stroke-width="12" fill="none"/>
+          <rect x="112" y="24" width="20" height="36" rx="6" fill="#f26a1b"/>
+          <rect x="128" y="14" width="60" height="56" rx="16" fill="#efede7"/>
+          <rect x="186" y="26" width="26" height="8" rx="2" fill="#b9bbbe"/>
+          <rect x="186" y="50" width="26" height="8" rx="2" fill="#b9bbbe"/>
+        </svg>
+        <svg class="plug r sticker" viewBox="0 0 220 84" preserveAspectRatio="xMinYMid meet">
+          <path d="M100 42h120" stroke="#e9e7e1" stroke-width="12" fill="none"/>
+          <rect x="88" y="24" width="20" height="36" rx="6" fill="#f26a1b"/>
+          <rect x="8" y="12" width="84" height="60" rx="18" fill="#efede7"/>
+          <rect x="8" y="12" width="22" height="60" rx="10" fill="#f26a1b"/>
+          <rect x="14" y="27" width="8" height="6" rx="2" fill="#26201a"/>
+          <rect x="14" y="51" width="8" height="6" rx="2" fill="#26201a"/>
+        </svg>
+        <svg class="spark" viewBox="-35 -35 70 70"><g id="sparkRays" fill="#f26a1b"/><circle r="9" fill="#ffdf4a"/></svg>
+      </div>
+      <ol class="steps" data-watch>
+        <li class="step reveal"><i class="num">1</i><b>QRコードを読む</b><span>箱のシールやPOPから、スマホでそのまま。</span></li>
+        <li class="step reveal"><i class="num">2</i><b>クッキーを割って占う</b><span>今日の運勢と、お菓子のキャラが出てきます。</span></li>
+        <li class="step reveal"><i class="num">3</i><b>質問に答えると口コミが育つ</b><span>できた文章をコピーして、Googleマップへ。</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 4. お店 -->
+  <section class="shops grain">
+    <div class="tear top" data-fill="#4b6149"></div>
+    <div class="wrap" data-watch>
+      <h2>やっている<em>お店</em></h2>
+      <a class="shop reveal" href="ririo/">
+        <img class="chara sticker" src="ririo/img/chara/cookie-2.webp" alt="">
+        <div class="name">Sweet Season ririo</div>
+        <div class="desc">おみくじクッキー × 口コミ</div>
+        <span class="go">ページを見る →</span>
+      </a>
+    </div>
+  </section>
+
+  <footer>もったいない.jp</footer>
+
+  <script>
+    // うずまき
+    (function () {
+      var d = "", gap = 9;
+      for (var t = 0; t < Math.PI * 2 * 18; t += 0.12) {
+        var r = gap * t / (Math.PI * 2);
+        d += (t ? "L" : "M") + (r * Math.cos(t)).toFixed(2) + " " + (r * Math.sin(t)).toFixed(2);
+      }
+      var p = document.getElementById("spiralPath");
+      p.setAttribute("d", d);
+      p.setAttribute("stroke-width", gap / 2);
+    })();
+
+    // ちぎった紙のふち
+    (function () {
+      var seed = 7;
+      function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+      document.querySelectorAll(".tear").forEach(function (el) {
+        var d = "M0 0", x = 0;
+        while (x < 1000) { d += "L" + x.toFixed(1) + " " + (12 + rnd() * 20).toFixed(1); x += 4 + rnd() * 14; }
+        d += "L1000 20L1000 0Z";
+        el.innerHTML = '<svg viewBox="0 0 1000 34" preserveAspectRatio="none"><path d="' + d + '" fill="' + el.dataset.fill + '"/></svg>';
+      });
+    })();
+
+    // 火花
+    (function () {
+      var g = document.getElementById("sparkRays"), s = "";
+      for (var i = 0; i < 12; i++) s += '<rect x="-3" y="-34" width="6" height="16" rx="3" transform="rotate(' + i * 30 + ')"/>';
+      g.innerHTML = s;
+    })();
+
+    // 紙のメモが積もる
+    (function () {
+      var box = document.getElementById("notes");
+      var spots = [[2,34,-8],[20,50,6],[62,40,-4],[76,56,10],[38,58,-12],[8,62,4],[52,66,-6,1],[70,24,8],[30,36,12],[-4,52,-10,1]];
+      spots.forEach(function (s, i) {
+        var n = document.createElement("i");
+        n.className = "note reveal" + (s[3] ? " o" : "");
+        n.style.cssText = "left:" + s[0] + "%;top:" + s[1] + "%;--r:" + s[2] + "deg;--d:" + (3 + i * 0.16) + "s";
+        box.appendChild(n);
+      });
+    })();
+
+    // 画面に入ったら動かす
+    (function () {
+      var els = document.querySelectorAll("[data-watch]");
+      if (!("IntersectionObserver" in window)) { els.forEach(function (e) { e.classList.add("in"); }); return; }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+      }, { threshold: 0.25 });
+      els.forEach(function (e) { io.observe(e); });
+    })();
+  </script>
 </body>
 </html>
