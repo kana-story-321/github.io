@@ -52,6 +52,7 @@
   .center { text-align:center; }
   .done h2 { color:var(--green); font-size:20px; margin:0 0 6px; }
   .done .id { font-size:30px; font-weight:800; color:var(--ink); letter-spacing:.08em; margin:8px 0 2px; }
+  .box a { color:var(--ink); font-weight:700; word-break:break-all; }
   .box { margin-top:16px; padding:14px; border-radius:12px; background:#f1f6ff; font-size:14px; line-height:1.8; white-space:pre-wrap; word-break:break-word; }
   dl { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:15px; margin:16px 0 0; }
   dt { color:var(--ink-soft); } dd { margin:0; font-weight:600; }
@@ -173,6 +174,20 @@
     $('msg').style.display = text ? 'block' : 'none';
   }
 
+  // 案内文の中のURLだけをリンクにする（それ以外は文字として表示）
+  function setTextWithLinks(el, text) {
+    el.textContent = '';
+    String(text).split(/(https?:\/\/[^\s　）)」]+)/).forEach(function (part, i) {
+      if (i % 2) {
+        var a = document.createElement('a');
+        a.href = part; a.target = '_blank'; a.rel = 'noopener'; a.textContent = part;
+        el.appendChild(a);
+      } else {
+        el.appendChild(document.createTextNode(part));
+      }
+    });
+  }
+
   function qtyValue() {
     var n = parseInt($('qty').value, 10);
     return n >= 1 ? n : 0;
@@ -259,7 +274,7 @@
         $('doneQty').textContent = r.qty + '枚';
         $('doneTotal').textContent = yen(r.total);
         $('donePay').textContent = r.payment;
-        $('donePayText').textContent = r.payText;
+        setTextWithLinks($('donePayText'), r.payText);
         $('doneMail').textContent = r.mailFailed
           ? '確認メールを送信できませんでした。お手数ですが、この画面を保存してください。'
           : '確認メールをお送りしました。この画面を閉じても大丈夫です。';
