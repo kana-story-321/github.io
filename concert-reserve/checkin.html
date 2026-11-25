@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root { --ink:#1b1fa8; --line:#d5deee; --green:#2f8a3c; --warn:#b5540a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif; color:#223; background:#eef3fb; }
+  .top { position:sticky; top:0; z-index:2; background:var(--ink); color:#fff; padding:12px 14px 14px; }
+  .top h1 { font-size:14px; margin:0 0 8px; font-weight:600; opacity:.9; }
+  .stats { display:flex; gap:14px; font-size:13px; margin-bottom:10px; flex-wrap:wrap; }
+  .stats b { font-size:18px; margin:0 2px; }
+  .search { display:flex; gap:8px; }
+  .search input { flex:1; min-width:0; font:inherit; font-size:16px; padding:10px 12px; border:0; border-radius:10px; }
+  .search button { font:inherit; border:0; border-radius:10px; padding:0 14px; background:#fff; color:var(--ink); font-weight:600; }
+  .filters { display:flex; gap:6px; margin-top:10px; }
+  .filters button { font:inherit; font-size:13px; padding:5px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.5); background:transparent; color:#fff; }
+  .filters button.on { background:#fff; color:var(--ink); }
+  .list { max-width:640px; margin:0 auto; padding:12px; }
+  .item { background:#fff; border-radius:14px; padding:14px; margin-bottom:10px; border:1px solid var(--line); display:flex; gap:12px; align-items:center; }
+  .item.arrived { background:#eef8ee; border-color:#bfe0c2; }
+  .main { flex:1; min-width:0; }
+  .kana { font-size:12px; color:#667; }
+  .name { font-size:19px; font-weight:700; overflow-wrap:anywhere; }
+  .meta { font-size:13px; color:#556; margin-top:4px; overflow-wrap:anywhere; }
+  .qty { font-size:22px; font-weight:800; color:var(--ink); white-space:nowrap; }
+  .qty small { font-size:12px; font-weight:500; }
+  .badge { display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:999px; margin-right:6px; }
+  .paid { background:#e3f4e5; color:var(--green); }
+  .unpaid { background:#ffe9d6; color:var(--warn); }
+  .note { font-size:12px; color:#667; margin-top:4px; }
+  .actions { display:flex; flex-direction:column; gap:6px; }
+  .actions button { font:inherit; font-size:14px; font-weight:700; border-radius:10px; padding:12px 14px; border:0; min-width:92px; cursor:pointer; }
+  .btn-in { background:var(--ink); color:#fff; }
+  .btn-undo { background:#fff; color:#667; border:1px solid var(--line) !important; font-weight:500 !important; }
+  .btn-pay { background:#fff; color:var(--warn); border:1px solid #f0c9a4 !important; font-size:12px !important; padding:7px 8px !important; }
+  button:disabled { opacity:.5; }
+  .empty { text-align:center; color:#667; padding:40px 0; }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1 id="title">受付</h1>
+  <div class="stats">
+    <span>予約<b id="sGroups">-</b>組<b id="sQty">-</b>枚</span>
+    <span>来場<b id="sIn">-</b>枚</span>
+    <span>未入金<b id="sUnpaid">-</b>組</span>
+  </div>
+  <div class="search">
+    <input id="q" type="search" placeholder="名前・フリガナ・電話・予約番号" autocomplete="off">
+    <button id="reload" type="button">更新</button>
+  </div>
+  <div class="filters" id="filters">
+    <button data-f="all" class="on">すべて</button>
+    <button data-f="yet">未来場</button>
+    <button data-f="unpaid">未入金</button>
+  </div>
+</div>
+<div class="list" id="list"><div class="empty">読み込み中…</div></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = '';
+  var data = [];
+  var filter = 'all';
+  var yen = function (n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円'; };
+
+  // ひらがな→カタカナ、全角英数→半角、空白とハイフン除去で検索しやすくする
+  function norm(s) {
+    return String(s).toLowerCase()
+      .replace(/[ぁ-ゖ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) + 0x60); })
+      .replace(/[！-～]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+      .replace(/[\s　\-‐ー−]/g, '');
+  }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function call(fn, args, btn, onOk) {
+    if (btn) btn.disabled = true;
+    var runner = google.script.run
+      .withSuccessHandler(function (r) { if (btn) btn.disabled = false; onOk(r); })
+      .withFailureHandler(function (e) {
+        if (btn) btn.disabled = false;
+        alert((e && e.message ? e.message : '通信に失敗しました。').replace(/^Error:\s*/, ''));
+      });
+    runner[fn].apply(runner, args);
+  }
+
+  function render() {
+    var q = norm($('q').value);
+    var groups = data.length, qty = 0, arrived = 0, unpaid = 0;
+    data.forEach(function (r) {
+      qty += r.qty;
+      if (r.arrived) arrived += r.qty;
+      if (!r.paid) unpaid++;
+    });
+    $('sGroups').textContent = groups;
+    $('sQty').textContent = qty;
+    $('sIn').textContent = arrived;
+    $('sUnpaid').textContent = unpaid;
+
+    var list = $('list');
+    list.textContent = '';
+    var shown = data.filter(function (r) {
+      if (filter === 'yet' && r.arrived) return false;
+      if (filter === 'unpaid' && r.paid) return false;
+      return !q || norm(r.name + ' ' + r.kana + ' ' + r.tel + ' ' + r.id).indexOf(q) !== -1;
+    });
+    if (!shown.length) {
+      list.appendChild(el('div', 'empty', data.length ? '該当する予約がありません' : 'まだ予約がありません'));
+      return;
+    }
+    shown.forEach(function (r) {
+      var item = el('div', 'item' + (r.arrived ? ' arrived' : ''));
+      var main = el('div', 'main');
+      main.appendChild(el('div', 'kana', r.kana));
+      main.appendChild(el('div', 'name', r.name));
+      var meta = el('div', 'meta');
+      meta.appendChild(el('span', 'badge ' + (r.paid ? 'paid' : 'unpaid'), r.paid ? '入金済' : '未入金 ' + yen(r.total)));
+      meta.appendChild(document.createTextNode(r.id + '・' + r.payment + '・' + r.tel));
+      main.appendChild(meta);
+      if (r.note) main.appendChild(el('div', 'note', '備考：' + r.note));
+      item.appendChild(main);
+
+      var q2 = el('div', 'qty', String(r.qty));
+      q2.appendChild(el('small', '', '枚'));
+      item.appendChild(q2);
+
+      var actions = el('div', 'actions');
+      var b = el('button', r.arrived ? 'btn-undo' : 'btn-in', r.arrived ? '取り消す' : '来場');
+      b.onclick = function () {
+        call('setArrived', [KEY, r.id, !r.arrived], b, function () { r.arrived = !r.arrived; render(); });
+      };
+      actions.appendChild(b);
+      if (!r.paid) {
+        var p = el('button', 'btn-pay', '入金済にする');
+        p.onclick = function () {
+          if (!confirm(r.name + ' 様　' + yen(r.total) + ' を入金済にしますか？')) return;
+          call('setPaid', [KEY, r.id, true], p, function () { r.paid = true; render(); });
+        };
+        actions.appendChild(p);
+      }
+      item.appendChild(actions);
+      list.appendChild(item);
+    });
+  }
+
+  function load() {
+    call('getCheckinList', [KEY], $('reload'), function (res) {
+      $('title').textContent = '受付｜' + res.title;
+      data = res.list.sort(function (a, b) { return a.kana.localeCompare(b.kana, 'ja'); });
+      render();
+    });
+  }
+
+  $('q').oninput = render;
+  $('reload').onclick = load;
+  $('filters').onclick = function (ev) {
+    var f = ev.target.getAttribute('data-f');
+    if (!f) return;
+    filter = f;
+    Array.prototype.forEach.call(this.children, function (c) { c.className = c === ev.target ? 'on' : ''; });
+    render();
+  };
+
+  google.script.url.getLocation(function (loc) {
+    KEY = (loc.parameter && loc.parameter.key) || '';
+    load();
+  });
+})();
+</script>
+</body>
+</html>

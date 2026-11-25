@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root { --ink:#1b1fa8; --ink-soft:#4a4fb5; --line:#c9d6ee; --green:#2f8a3c; --err:#c0392b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif; color:#223;
+    background:linear-gradient(180deg,#3d8fe0 0,#8cc4f2 300px,#e9f3d8 62%,#7fc15a 100%); min-height:100vh; }
+  .wrap { max-width:520px; margin:0 auto; padding:28px 16px 48px; }
+  header { text-align:center; color:#fff; text-shadow:0 1px 6px rgba(20,40,120,.45); margin-bottom:20px; }
+  header h1 { font-size:24px; line-height:1.5; letter-spacing:.12em; margin:0 0 10px; }
+  header h1 span { display:inline-block; margin:0 .3em; }
+  header p { margin:2px 0; font-size:14px; letter-spacing:.06em; }
+  .card { background:rgba(255,255,255,.94); border-radius:18px; padding:22px 20px; box-shadow:0 6px 24px rgba(20,60,120,.18); }
+  .info { margin:0 0 18px; padding:0 0 16px; border-bottom:1px solid var(--line); font-size:14px; line-height:1.9; color:var(--ink); }
+  .info div { display:flex; }
+  .info b { flex:none; width:4em; color:var(--ink-soft); font-weight:600; }
+  label { display:block; font-size:13px; font-weight:600; color:var(--ink); margin:16px 0 6px; }
+  label .opt { font-weight:400; color:#778; margin-left:6px; }
+  input[type=text], input[type=email], input[type=tel], input[type=number], textarea {
+    width:100%; font:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+  input:focus, textarea:focus { outline:2px solid #7aa7ee; border-color:#7aa7ee; }
+  textarea { min-height:70px; resize:vertical; }
+  .qty { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .qty input { width:90px; text-align:center; }
+  .qty button { width:44px; height:44px; border-radius:50%; border:1px solid var(--line); background:#fff; font-size:22px; color:var(--ink); cursor:pointer; }
+  .qty .total { margin-left:auto; font-size:18px; font-weight:700; color:var(--ink); white-space:nowrap; }
+  .pay { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pay label { margin:0; padding:12px 8px; border:1px solid var(--line); border-radius:10px; text-align:center; font-weight:500; cursor:pointer; background:#fff; }
+  .pay input { position:absolute; opacity:0; }
+  .pay input:checked + span { color:#fff; }
+  .pay label:has(input:checked) { background:var(--ink); border-color:var(--ink); color:#fff; }
+  .hp { position:absolute; left:-9999px; }
+  .submit { width:100%; margin-top:24px; padding:15px; font:inherit; font-size:17px; font-weight:700; letter-spacing:.15em;
+    color:#fff; background:var(--ink); border:0; border-radius:999px; cursor:pointer; }
+  .submit:disabled { opacity:.55; cursor:default; }
+  .msg { margin-top:14px; padding:10px 12px; border-radius:10px; background:#fdecea; color:var(--err); font-size:14px; display:none; }
+  .note { font-size:12px; color:#667; line-height:1.7; margin-top:16px; }
+  .remain { display:inline-block; margin-top:8px; padding:3px 12px; border-radius:999px; background:#fff3cd; color:#8a6100; font-size:13px; font-weight:600; }
+  .center { text-align:center; }
+  .done h2 { color:var(--green); font-size:20px; margin:0 0 6px; }
+  .done .id { font-size:30px; font-weight:800; color:var(--ink); letter-spacing:.08em; margin:8px 0 2px; }
+  .box { margin-top:16px; padding:14px; border-radius:12px; background:#f1f6ff; font-size:14px; line-height:1.8; white-space:pre-wrap; word-break:break-word; }
+  dl { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:15px; margin:16px 0 0; }
+  dt { color:var(--ink-soft); } dd { margin:0; font-weight:600; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">&nbsp;</h1>
+    <p id="performers"></p>
+  </header>
+
+  <div class="card center" id="loading">読み込み中…</div>
+
+  <div class="card center" id="closed" hidden>
+    <p id="closedReason" style="font-size:16px;font-weight:600;color:var(--ink)"></p>
+    <p class="note" id="closedContact"></p>
+  </div>
+
+  <form class="card" id="form" hidden novalidate>
+    <div class="info">
+      <div><b>日時</b><span id="when" style="white-space:pre-line"></span></div>
+      <div><b>会場</b><span id="venue"></span></div>
+      <div><b>料金</b><span id="price"></span></div>
+      <span class="remain" id="remain" hidden></span>
+    </div>
+
+    <label for="name">お名前</label>
+    <input type="text" id="name" autocomplete="name" maxlength="60" required>
+
+    <label for="kana">フリガナ</label>
+    <input type="text" id="kana" maxlength="60" placeholder="カナザワ ヒロシ" required>
+
+    <label for="email">メールアドレス</label>
+    <input type="email" id="email" autocomplete="email" inputmode="email" maxlength="120" required>
+
+    <label for="tel">電話番号</label>
+    <input type="tel" id="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="090-1234-5678" required>
+
+    <label for="qty">枚数</label>
+    <div class="qty">
+      <button type="button" id="minus" aria-label="1枚減らす">−</button>
+      <input type="number" id="qty" inputmode="numeric" min="1" value="1" required>
+      <button type="button" id="plus" aria-label="1枚増やす">＋</button>
+      <span class="total" id="total"></span>
+    </div>
+
+    <label>お支払い方法</label>
+    <div class="pay" id="pay"></div>
+
+    <label for="note">備考<span class="opt">任意</span></label>
+    <textarea id="note" maxlength="300"></textarea>
+
+    <input class="hp" type="text" id="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+    <div class="msg" id="msg" role="alert"></div>
+    <button class="submit" id="submit" type="submit">予約する</button>
+    <p class="note">ご入力いただいた個人情報は、本公演のご予約管理とご連絡のためにのみ使用します。<br>
+      送信後、確認メールをお送りします。届かない場合は迷惑メールフォルダもご確認ください。</p>
+  </form>
+
+  <div class="card done center" id="done" hidden>
+    <h2>ご予約を承りました</h2>
+    <div>予約番号</div>
+    <div class="id" id="doneId"></div>
+    <dl style="text-align:left">
+      <dt>お名前</dt><dd id="doneName"></dd>
+      <dt>枚数</dt><dd id="doneQty"></dd>
+      <dt>合計</dt><dd id="doneTotal"></dd>
+      <dt>お支払い</dt><dd id="donePay"></dd>
+    </dl>
+    <div class="box" id="donePayText" style="text-align:left"></div>
+    <p class="note" id="doneMail"></p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var info = null;
+  var yen = function (n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円'; };
+
+  function showError(text) {
+    $('msg').textContent = text;
+    $('msg').style.display = text ? 'block' : 'none';
+  }
+
+  function qtyValue() {
+    var n = parseInt($('qty').value, 10);
+    return n >= 1 ? n : 0;
+  }
+
+  function updateTotal() {
+    var n = qtyValue();
+    $('total').textContent = n ? '合計 ' + yen(n * info.price) : '';
+  }
+
+  function setQty(n) {
+    if (n < 1) n = 1;
+    if (info.remaining !== null && n > info.remaining) n = info.remaining;
+    $('qty').value = n;
+    updateTotal();
+  }
+
+  function render(data) {
+    info = data;
+    $('loading').hidden = true;
+    $('title').textContent = '';
+    info.title.split(/\s+/).forEach(function (w) {
+      var span = document.createElement('span');
+      span.textContent = w;
+      $('title').appendChild(span);
+    });
+    $('performers').textContent = info.performers;
+    document.title = 'ご予約｜' + info.title;
+
+    if (!info.open) {
+      $('closedReason').textContent = info.closedReason;
+      $('closedContact').textContent = info.contact ? 'お問い合わせ：' + info.contact : '';
+      $('closed').hidden = false;
+      return;
+    }
+    $('when').textContent = info.dateText + '\n' + info.timeText;
+    $('venue').textContent = info.venue;
+    $('price').textContent = yen(info.price) + '（1枚）';
+    if (info.remaining !== null) {
+      $('qty').max = info.remaining;
+      if (info.remaining <= 10) {
+        $('remain').textContent = '残り' + info.remaining + '枚';
+        $('remain').hidden = false;
+      }
+    }
+    info.payments.forEach(function (p, i) {
+      var label = document.createElement('label');
+      var input = document.createElement('input');
+      input.type = 'radio'; input.name = 'payment'; input.value = p; input.checked = i === 0;
+      var span = document.createElement('span');
+      span.textContent = p;
+      label.appendChild(input); label.appendChild(span);
+      $('pay').appendChild(label);
+    });
+    updateTotal();
+    $('form').hidden = false;
+  }
+
+  $('minus').onclick = function () { setQty(qtyValue() - 1); };
+  $('plus').onclick = function () { setQty(qtyValue() + 1); };
+  $('qty').oninput = updateTotal;
+
+  $('form').onsubmit = function (ev) {
+    ev.preventDefault();
+    showError('');
+    var data = {
+      name: $('name').value, kana: $('kana').value, email: $('email').value, tel: $('tel').value,
+      qty: qtyValue(), note: $('note').value, website: $('website').value,
+      payment: (document.querySelector('input[name=payment]:checked') || {}).value
+    };
+    if (!data.name.trim()) return showError('お名前を入力してください。');
+    if (!data.kana.trim()) return showError('フリガナを入力してください。');
+    if (!/^\S+@\S+\.\S+$/.test(data.email.trim())) return showError('メールアドレスを正しく入力してください。');
+    if (data.tel.replace(/\D/g, '').length < 9) return showError('電話番号を正しく入力してください。');
+    if (!data.qty) return showError('枚数を入力してください。');
+
+    var btn = $('submit');
+    btn.disabled = true; btn.textContent = '送信中…';
+    google.script.run
+      .withSuccessHandler(function (r) {
+        $('form').hidden = true;
+        $('doneId').textContent = r.id;
+        $('doneName').textContent = r.name + ' 様';
+        $('doneQty').textContent = r.qty + '枚';
+        $('doneTotal').textContent = yen(r.total);
+        $('donePay').textContent = r.payment;
+        $('donePayText').textContent = r.payText;
+        $('doneMail').textContent = r.mailFailed
+          ? '確認メールを送信できませんでした。お手数ですが、この画面を保存してください。'
+          : '確認メールをお送りしました。この画面を閉じても大丈夫です。';
+        $('done').hidden = false;
+        window.scrollTo(0, 0);
+      })
+      .withFailureHandler(function (e) {
+        btn.disabled = false; btn.textContent = '予約する';
+        showError((e && e.message ? e.message : '送信に失敗しました。').replace(/^Error:\s*/, ''));
+      })
+      .submitReservation(data);
+  };
+
+  google.script.run
+    .withSuccessHandler(render)
+    .withFailureHandler(function () { $('loading').textContent = '読み込みに失敗しました。時間をおいて再度お試しください。'; })
+    .getFormInfo();
+})();
+</script>
+</body>
+</html>
