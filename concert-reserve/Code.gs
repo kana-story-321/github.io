@@ -64,6 +64,7 @@ function setup() {
     set.setColumnWidth(2, 340);
     set.setColumnWidth(3, 520);
   }
+  migrateBankSetting_(set);
   var existing = readSettings_();
   DEFAULT_SETTINGS.forEach(function (d) {
     if (existing.hasOwnProperty(d[0])) return;
@@ -81,6 +82,26 @@ function setup() {
     var widths = [80, 150, 140, 140, 220, 130, 50, 120, 90, 100, 80, 80, 50, 80, 260];
     widths.forEach(function (w, i) { res.setColumnWidth(i + 1, w); });
   }
+}
+
+/** 旧版の「振込先」行（口座情報だけ）を、文面ごと編集できる「振込の案内」行に置き換える */
+function migrateBankSetting_(set) {
+  var last = set.getLastRow();
+  if (last < 2) return;
+  var rows = set.getRange(2, 1, last - 1, 2).getValues();
+  var oldIdx = -1, hasNew = false;
+  rows.forEach(function (r, i) {
+    var k = String(r[0]).trim();
+    if (k === '振込先') oldIdx = i;
+    if (k === '振込の案内') hasNew = true;
+  });
+  if (oldIdx < 0 || hasNew) return;
+  var bank = String(rows[oldIdx][1] || '').trim();
+  set.getRange(oldIdx + 2, 1, 1, 3).setValues([[
+    '振込の案内',
+    '{期限}までに、{合計}を下記の口座へお振込みください。\n\n' + (bank || '（ここに銀行名・支店・口座種別・口座番号・名義を入力）'),
+    '振込の方への案内文。メールと完了画面に載ります。{名前} {予約番号} {枚数} {合計} {期限} は予約ごとの内容に置き換わります'
+  ]]);
 }
 
 function showUrls() {
