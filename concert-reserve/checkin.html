@@ -3,22 +3,38 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root { --ink:#1b1fa8; --line:#d5deee; --green:#2f8a3c; --warn:#b5540a; }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif; color:#223; background:#eef3fb; }
-  .top { position:sticky; top:0; z-index:2; background:var(--ink); color:#fff; padding:12px 14px 14px; }
-  .top h1 { font-size:14px; margin:0 0 8px; font-weight:600; opacity:.9; }
+  body { margin:0; position:relative; min-height:100vh; overflow-x:hidden; color:#1c2030;
+    font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;
+    background:
+      radial-gradient(circle, rgba(255,255,255,.28) 1.4px, transparent 1.9px) 0 0/22px 22px,
+      radial-gradient(circle, rgba(255,255,255,.28) 1.4px, transparent 1.9px) 11px 11px/22px 22px,
+      linear-gradient(180deg,#2f78d2 0,#3f8fe0 280px,#a8d4f5 55%,#e6f4dc 82%,#cfeab8 100%); }
+  .deco { position:absolute; left:0; width:100%; pointer-events:none; }
+  .deco.field { bottom:0; height:190px; }
+  .top { position:sticky; top:0; z-index:2; color:#fff; padding:12px 14px 14px; overflow:hidden;
+    box-shadow:0 4px 14px rgba(10,40,120,.25);
+    background:
+      radial-gradient(circle, rgba(255,255,255,.28) 1.4px, transparent 1.9px) 0 0/22px 22px,
+      radial-gradient(circle, rgba(255,255,255,.28) 1.4px, transparent 1.9px) 11px 11px/22px 22px,
+      linear-gradient(180deg,#1e5cc0,#2f78d2); }
+  .top > * { position:relative; }
+  .top .clouds { position:absolute; right:-10px; top:-6px; width:170px; height:60px; opacity:.45; }
+  .top h1 { font-size:14px; margin:0 0 8px; font-weight:700; letter-spacing:.06em; text-shadow:0 1px 6px rgba(10,40,120,.6); }
   .stats { display:flex; gap:14px; font-size:13px; margin-bottom:10px; flex-wrap:wrap; }
   .stats b { font-size:18px; margin:0 2px; }
   .search { display:flex; gap:8px; }
-  .search input { flex:1; min-width:0; font:inherit; font-size:16px; padding:10px 12px; border:0; border-radius:10px; }
-  .search button { font:inherit; border:0; border-radius:10px; padding:0 14px; background:#fff; color:var(--ink); font-weight:600; }
+  .search input { flex:1; min-width:0; font:inherit; font-size:16px; padding:10px 12px; border:0; border-radius:12px; }
+  .search button { font:inherit; border:0; border-radius:12px; padding:0 14px; background:#fff; color:var(--ink); font-weight:700; }
   .filters { display:flex; gap:6px; margin-top:10px; }
-  .filters button { font:inherit; font-size:13px; padding:5px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.5); background:transparent; color:#fff; }
+  .filters button { font:inherit; font-size:13px; padding:5px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.8); background:rgba(20,60,150,.25); color:#fff; font-weight:700; }
   .filters button.on { background:#fff; color:var(--ink); }
-  .list { max-width:640px; margin:0 auto; padding:12px; }
-  .item { background:#fff; border-radius:14px; padding:14px; margin-bottom:10px; border:1px solid var(--line); display:flex; gap:12px; align-items:center; }
+  .list { position:relative; max-width:640px; margin:0 auto; padding:14px 12px 220px; }
+  .item { background:#fff; border-radius:18px; padding:14px; margin-bottom:10px; border:1px solid transparent; box-shadow:0 6px 18px rgba(20,30,120,.14); display:flex; gap:12px; align-items:center; }
   .item.arrived { background:#eef8ee; border-color:#bfe0c2; }
   .main { flex:1; min-width:0; }
   .kana { font-size:12px; color:#667; }
@@ -31,16 +47,41 @@
   .unpaid { background:#ffe9d6; color:var(--warn); }
   .note { font-size:12px; color:#667; margin-top:4px; }
   .actions { display:flex; flex-direction:column; gap:6px; }
-  .actions button { font:inherit; font-size:14px; font-weight:700; border-radius:10px; padding:12px 14px; border:0; min-width:92px; cursor:pointer; }
+  .actions button { font:inherit; font-size:14px; font-weight:700; border-radius:12px; padding:12px 14px; border:0; min-width:92px; cursor:pointer; }
   .btn-in { background:var(--ink); color:#fff; }
   .btn-undo { background:#fff; color:#667; border:1px solid var(--line) !important; font-weight:500 !important; }
   .btn-pay { background:#fff; color:var(--warn); border:1px solid #f0c9a4 !important; font-size:12px !important; padding:7px 8px !important; }
   button:disabled { opacity:.5; }
-  .empty { text-align:center; color:#667; padding:40px 0; }
+  .empty { text-align:center; color:#5b6275; padding:40px 0; background:#fff; border-radius:18px; box-shadow:0 6px 18px rgba(20,30,120,.14); }
 </style>
 </head>
 <body>
+<svg class="deco field" aria-hidden="true">
+  <defs>
+    <pattern id="rows" width="13" height="15" patternUnits="userSpaceOnUse">
+      <path d="M6.5 3.5v7" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".45"/>
+    </pattern>
+    <pattern id="hill1" width="390" height="190" patternUnits="userSpaceOnUse">
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="#9ad672"/>
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="url(#rows)"/>
+    </pattern>
+    <pattern id="hill2" width="390" height="190" patternUnits="userSpaceOnUse" patternTransform="translate(130 58)">
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="#6fbd50"/>
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="url(#rows)"/>
+    </pattern>
+    <pattern id="hill3" width="390" height="190" patternUnits="userSpaceOnUse" patternTransform="translate(260 116)">
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="#479a38"/>
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="url(#rows)"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="190" fill="url(#hill1)"/>
+  <rect y="58" width="100%" height="132" fill="url(#hill2)"/>
+  <rect y="116" width="100%" height="74" fill="url(#hill3)"/>
+</svg>
 <div class="top">
+  <svg class="clouds" aria-hidden="true" viewBox="0 0 170 60">
+    <g fill="#fff"><ellipse cx="120" cy="34" rx="46" ry="15"/><ellipse cx="96" cy="22" rx="30" ry="15"/><ellipse cx="30" cy="14" rx="26" ry="9"/></g>
+  </svg>
   <h1 id="title">受付</h1>
   <div class="stats">
     <span>予約<b id="sGroups">-</b>組<b id="sQty">-</b>枚</span>
