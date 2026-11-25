@@ -38,7 +38,8 @@ var DEFAULT_SETTINGS = [
   ['カード決済URL', '', 'カード決済ページのURL。あとから入力できます。空欄の間は「準備ができ次第メールでご案内します」と表示'],
   ['問い合わせ先', '', 'メール末尾とフォームに表示（メールアドレスや電話番号）'],
   ['通知先メール', '', '予約が入るたびに主催者へ通知するアドレス。空欄なら通知しない'],
-  ['受付画面の合言葉', '', '受付画面URLの key= に付ける文字列。他人に知られたら書き換えてください']
+  ['受付画面の合言葉', '', '受付画面URLの key= に付ける文字列。他人に知られたら書き換えてください'],
+  ['予約フォームURL', '', 'デプロイ後に「デプロイを管理」のウェブアプリURL（…/exec）を貼る。メニューのURL表示に使います']
 ];
 
 /* ───────────── 初期設定・メニュー ───────────── */
@@ -105,15 +106,19 @@ function migrateBankSetting_(set) {
 }
 
 function showUrls() {
-  var url = ScriptApp.getService().getUrl();
   var ui = SpreadsheetApp.getUi();
-  if (!url) {
-    ui.alert('まだWebアプリとしてデプロイされていません。\nApps Script の「デプロイ」→「新しいデプロイ」から公開してください。');
+  var s = readSettings_();
+  // 自動取得のURLは正しくないことがあるため、デプロイ画面のURLを設定シートに貼ってもらう
+  var url = String(s['予約フォームURL'] || '').trim().replace(/\?.*$/, '');
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) {
+    ui.alert('「設定」シートの「予約フォームURL」に、ウェブアプリのURLを貼ってください。\n\n' +
+      'URLの場所：Apps Script の「デプロイ」→「デプロイを管理」→「ウェブアプリ」のURL\n' +
+      '（https://script.google.com/macros/s/…/exec の形）');
     return;
   }
-  var key = readSettings_()['受付画面の合言葉'];
   ui.alert('予約フォーム（お客様用）\n' + url +
-    '\n\n受付画面（スタッフ用・外部に出さない）\n' + url + '?page=checkin&key=' + encodeURIComponent(key));
+    '\n\n受付画面（スタッフ用・外部に出さない）\n' + url + '?page=checkin&key=' +
+    encodeURIComponent(String(s['受付画面の合言葉'] || '')));
 }
 
 /* ───────────── Webアプリ ───────────── */
