@@ -3,24 +3,34 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root { --ink:#1b1fa8; --ink-soft:#4a4fb5; --line:#c9d6ee; --green:#2f8a3c; --err:#c0392b; }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif; color:#223;
-    background:linear-gradient(180deg,#3d8fe0 0,#8cc4f2 300px,#e9f3d8 62%,#7fc15a 100%); min-height:100vh; }
-  .wrap { max-width:520px; margin:0 auto; padding:28px 16px 48px; }
-  header { text-align:center; color:#fff; text-shadow:0 1px 6px rgba(20,40,120,.45); margin-bottom:20px; }
-  header h1 { font-size:24px; line-height:1.5; letter-spacing:.12em; margin:0 0 10px; }
+  body { margin:0; position:relative; min-height:100vh; overflow-x:hidden; color:#1c2030;
+    font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;
+    background:
+      radial-gradient(circle, rgba(255,255,255,.28) 1.4px, transparent 1.9px) 0 0/22px 22px,
+      radial-gradient(circle, rgba(255,255,255,.28) 1.4px, transparent 1.9px) 11px 11px/22px 22px,
+      linear-gradient(180deg,#1e5cc0 0,#3f8fe0 280px,#a8d4f5 55%,#e6f4dc 82%,#cfeab8 100%); }
+  .deco { position:absolute; left:0; width:100%; pointer-events:none; }
+  .deco.clouds { top:0; height:230px; }
+  .deco.field { bottom:0; height:190px; }
+  .wrap { position:relative; max-width:520px; margin:0 auto; padding:34px 16px 230px; }
+  header { text-align:center; color:#fff; text-shadow:0 2px 8px rgba(10,40,120,.5); margin-bottom:24px; }
+  header .tag { display:inline-block; margin-bottom:8px; padding:4px 14px 4px 18px; border-radius:999px; background:#fff; color:var(--ink); font-size:12px; font-weight:700; letter-spacing:.4em; text-shadow:none; }
+  header h1 { font-size:26px; line-height:1.5; letter-spacing:.14em; margin:0 0 8px; }
   header h1 span { display:inline-block; margin:0 .3em; }
-  header p { margin:2px 0; font-size:14px; letter-spacing:.06em; }
-  .card { background:rgba(255,255,255,.94); border-radius:18px; padding:22px 20px; box-shadow:0 6px 24px rgba(20,60,120,.18); }
-  .info { margin:0 0 18px; padding:0 0 16px; border-bottom:1px solid var(--line); font-size:14px; line-height:1.9; color:var(--ink); }
+  header p { margin:0; font-size:13px; font-weight:700; letter-spacing:.08em; }
+  .card { background:#fff; border-radius:22px; padding:24px 20px 26px; box-shadow:0 10px 30px rgba(20,30,120,.18); }
+  .info { margin:0 0 18px; padding:0 0 16px; border-bottom:1px dashed #b9c4e6; font-size:14px; line-height:1.9; color:var(--ink); }
   .info div { display:flex; }
   .info b { flex:none; width:4em; color:var(--ink-soft); font-weight:600; }
   label { display:block; font-size:13px; font-weight:600; color:var(--ink); margin:16px 0 6px; }
   label .opt { font-weight:400; color:#778; margin-left:6px; }
   input[type=text], input[type=email], input[type=tel], input[type=number], textarea {
-    width:100%; font:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+    width:100%; font:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--line); border-radius:12px; background:#f8faff; }
   input:focus, textarea:focus { outline:2px solid #7aa7ee; border-color:#7aa7ee; }
   textarea { min-height:70px; resize:vertical; }
   .qty { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -49,8 +59,41 @@
 </style>
 </head>
 <body>
+<svg class="deco clouds" aria-hidden="true" viewBox="0 0 390 230" preserveAspectRatio="xMidYMin meet">
+  <g fill="#fff" opacity=".5">
+    <ellipse cx="34" cy="52" rx="46" ry="15"/><ellipse cx="62" cy="40" rx="30" ry="15"/>
+    <ellipse cx="352" cy="30" rx="44" ry="13"/><ellipse cx="330" cy="20" rx="24" ry="12"/>
+  </g>
+  <g fill="#fff" opacity=".92">
+    <ellipse cx="-4" cy="178" rx="52" ry="17"/><ellipse cx="22" cy="164" rx="30" ry="17"/>
+    <ellipse cx="392" cy="196" rx="56" ry="18"/><ellipse cx="366" cy="181" rx="30" ry="17"/>
+  </g>
+</svg>
+<svg class="deco field" aria-hidden="true">
+  <defs>
+    <pattern id="rows" width="13" height="15" patternUnits="userSpaceOnUse">
+      <path d="M6.5 3.5v7" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".45"/>
+    </pattern>
+    <pattern id="hill1" width="390" height="190" patternUnits="userSpaceOnUse">
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="#9ad672"/>
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="url(#rows)"/>
+    </pattern>
+    <pattern id="hill2" width="390" height="190" patternUnits="userSpaceOnUse" patternTransform="translate(130 58)">
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="#6fbd50"/>
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="url(#rows)"/>
+    </pattern>
+    <pattern id="hill3" width="390" height="190" patternUnits="userSpaceOnUse" patternTransform="translate(260 116)">
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="#479a38"/>
+      <path d="M0 24C65 4 130 4 195 24S325 44 390 24V190H0Z" fill="url(#rows)"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="190" fill="url(#hill1)"/>
+  <rect y="58" width="100%" height="132" fill="url(#hill2)"/>
+  <rect y="116" width="100%" height="74" fill="url(#hill3)"/>
+</svg>
 <div class="wrap">
   <header>
+    <div class="tag">ご予約</div>
     <h1 id="title">&nbsp;</h1>
     <p id="performers"></p>
   </header>
