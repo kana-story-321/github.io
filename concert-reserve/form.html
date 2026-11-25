@@ -29,6 +29,8 @@
   .info b { flex:none; width:4em; color:var(--ink-soft); font-weight:600; }
   label { display:block; font-size:13px; font-weight:600; color:var(--ink); margin:16px 0 6px; }
   label .opt { font-weight:400; color:#778; margin-left:6px; }
+  label .req { display:inline-block; margin-left:8px; padding:1px 7px; border-radius:999px; background:#d93025; color:#fff; font-size:11px; font-weight:700; letter-spacing:.05em; vertical-align:1px; }
+  label .opt { display:inline-block; padding:1px 7px; border-radius:999px; background:#e6eaf3; color:#4b5266; font-size:11px; }
   input[type=text], input[type=email], input[type=tel], input[type=number], textarea {
     width:100%; font:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--line); border-radius:12px; background:#f8faff; }
   input:focus, textarea:focus { outline:2px solid #7aa7ee; border-color:#7aa7ee; }
@@ -114,19 +116,19 @@
       <span class="remain" id="remain" hidden></span>
     </div>
 
-    <label for="name">お名前</label>
+    <label for="name">お名前<span class="req">必須</span></label>
     <input type="text" id="name" autocomplete="name" maxlength="60" required>
 
-    <label for="kana">フリガナ</label>
+    <label for="kana">フリガナ<span class="req">必須</span></label>
     <input type="text" id="kana" maxlength="60" placeholder="カナザワ ヒロシ" required>
 
-    <label for="email">メールアドレス</label>
+    <label for="email">メールアドレス<span class="req">必須</span></label>
     <input type="email" id="email" autocomplete="email" inputmode="email" maxlength="120" required>
 
-    <label for="tel">電話番号</label>
+    <label for="tel">電話番号<span class="req">必須</span></label>
     <input type="tel" id="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="090-1234-5678" required>
 
-    <label for="qty">枚数</label>
+    <label for="qty">枚数<span class="req">必須</span></label>
     <div class="qty">
       <button type="button" id="minus" aria-label="1枚減らす">−</button>
       <input type="number" id="qty" inputmode="numeric" min="1" value="1" required>
@@ -134,7 +136,7 @@
       <span class="total" id="total"></span>
     </div>
 
-    <label>お支払い方法</label>
+    <label>お支払い方法<span class="req">必須</span></label>
     <div class="pay" id="pay"></div>
 
     <label for="note">備考<span class="opt">任意</span></label>
