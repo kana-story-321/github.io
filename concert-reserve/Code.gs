@@ -31,8 +31,10 @@ var DEFAULT_SETTINGS = [
   ['定員', '', '販売する合計枚数。空欄なら上限なし'],
   ['受付状態', '受付中', '「受付中」以外にするとフォームが受付停止になります'],
   ['振込期限日数', 7, '予約日から何日以内か（公演前日のほうが早ければ前日が期限）'],
-  ['振込先', '', '銀行名・支店・口座種別・口座番号・名義。メールと完了画面にそのまま載ります'],
-  ['カード決済の案内', '', 'カード払いの方への案内文（決済ページのURLなど）。空欄なら「別途ご案内」と表示'],
+  ['振込の案内', '{期限}までに、{合計}を下記の口座へお振込みください。\n\n（ここに銀行名・支店・口座種別・口座番号・名義を入力）',
+    '振込の方への案内文。メールと完了画面に載ります。{名前} {予約番号} {枚数} {合計} {期限} は予約ごとの内容に置き換わります'],
+  ['カード決済の案内', '{期限}までに、{合計}をクレジットカードでお支払いください。\n\n（ここに決済ページのURLや手順を入力）',
+    'カード払いの方への案内文。使える置き換えは振込の案内と同じです'],
   ['問い合わせ先', '', 'メール末尾とフォームに表示（メールアドレスや電話番号）'],
   ['通知先メール', '', '予約が入るたびに主催者へ通知するアドレス。空欄なら通知しない'],
   ['受付画面の合言葉', '', '受付画面URLの key= に付ける文字列。他人に知られたら書き換えてください']
@@ -192,8 +194,9 @@ function submitReservation(form) {
 
     result = {
       id: id, name: name, qty: qty, total: total, payment: payment,
-      payText: payText_(s, payment, total, due)
+      payText: ''
     };
+    result.payText = payText_(s, result, due);
   } finally {
     lock.releaseLock();
   }
@@ -314,18 +317,17 @@ function dueDate_(todayYmd, eventYmd, days) {
   return due < todayYmd ? null : due;
 }
 
-function payText_(s, payment, total, due) {
-  var amount = yen_(total) + '円';
+/**
+ * 支払い案内文。設定シートの文面の {名前} {予約番号} {枚数} {合計} {期限} を予約内容に置き換える。
+ * 公演当日の予約（期限なし）は当日払いの固定文。
+ */
+function payText_(s, r, due) {
+  var amount = yen_(r.total) + '円';
   if (!due) return '公演当日のご予約のため、' + amount + 'を当日受付にてお支払いください。';
-  var dueText = jpDate_(due);
-  if (payment === PAY_BANK) {
-    var bank = String(s['振込先'] || '').trim();
-    return dueText + 'までに、' + amount + 'を下記の口座へお振込みください。\n\n' +
-      (bank || '（振込先は別途ご連絡いたします）');
-  }
-  var card = String(s['カード決済の案内'] || '').trim();
-  return dueText + 'までに、' + amount + 'をクレジットカードでお支払いください。\n\n' +
-    (card || '（決済方法は別途ご案内いたします）');
+  var tpl = String(s[r.payment === PAY_BANK ? '振込の案内' : 'カード決済の案内'] || '').trim();
+  if (!tpl) tpl = '{期限}までに、{合計}をお支払いください。お支払い方法は別途ご案内いたします。';
+  var vals = { '名前': r.name, '予約番号': r.id, '枚数': r.qty + '枚', '合計': amount, '期限': jpDate_(due) };
+  return tpl.replace(/[{｛]\s*(名前|予約番号|枚数|合計|期限)\s*[}｝]/g, function (m, k) { return vals[k]; });
 }
 
 function sendMails_(s, r, email, tel, note) {
